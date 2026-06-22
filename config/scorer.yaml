@@ -1,0 +1,19 @@
+# ===========================================================================
+# 评分模型配置
+# ===========================================================================
+
+# 推理服务地址
+api_base: "https://api.qnaigc.com/v1"
+
+# API 密钥
+api_key: "YOUR_API_KEY_HERE"
+
+# 模型名
+model: "deepseek/deepseek-v4-flash"
+
+# 推理参数
+temperature: 0
+max_tokens: 256
+timeout: 60
+max_retries: 3
+retry_backoff: 2.0

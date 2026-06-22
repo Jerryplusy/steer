@@ -27,7 +27,7 @@ TEST_DATA_DIR="$PROJECT_ROOT/data_test"
 REAL_DATA_DIR="$PROJECT_ROOT/data"
 
 echo "===== [1/4] 准备 5 个测试样本 ====="
-python "$PROJECT_ROOT/shell/prepare_test_data.py" --n 5 --concept L1_1
+python "$PROJECT_ROOT/shell/prepare.py" --n 5 --concept L1_1
 
 echo ""
 echo "===== [2/4] 切换 EasyEdit/data -> data_test/ ====="

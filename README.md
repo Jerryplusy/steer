@@ -57,6 +57,14 @@ pip install -r requirements.txt
 
 > 如果在国内访问 PyPI 较慢，可加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` 使用清华镜像。
 
+### 3.1 下载 NLTK 数据
+
+`steer_eval.py` 评测阶段会调用 nltk 的 punkt tokenizer，首次运行需要下载：
+
+```bash
+python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
+```
+
 ---
 
 ## 4. 下载模型与数据
