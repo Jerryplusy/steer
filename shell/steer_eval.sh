@@ -200,6 +200,9 @@ fi
 # ===========================
 cd "$EASYEDIT_DIR"
 
+# 把 EasyEdit 加到 PYTHONPATH，让 steer_eval.py 能 `import steer`（steer 包在 EasyEdit/steer/）
+export PYTHONPATH="$EASYEDIT_DIR:${PYTHONPATH:-}"
+
 eval "$ENV_PREFIX" python examples/steer_eval.py \
     model_name_or_path="${model_name_or_path}" \
     device="${device}" \

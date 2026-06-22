@@ -8,7 +8,7 @@
 #   ./shell/test_pipeline.sh --device=cuda:0              # 改设备
 #   ./shell/test_pipeline.sh --method=reps                # 换方法
 #   ./shell/test_pipeline.sh --layers=22 --multipliers=2  # 改超参
-#   SKIP_SCORE=true ./shell/test_pipeline.sh              # 跳过打分（节省 API 费用）
+#   SKIP_SCORE=true ./shell/test_pipeline.sh              # 跳过打分
 # ===========================================================================
 set -e
 
@@ -39,14 +39,23 @@ SKIP_SCORE="${SKIP_SCORE:-false}"
 
 # ===========================
 # 工具：无论成功失败都恢复软链
+# 用 find 而不是 ls glob（zsh 下更稳）
 # ===========================
 restore_symlink() {
+    set +e   # trap 内不允许因小错退出
+    # 删掉当前的软链（如果有）
     if [ -L "$DATA_LINK" ]; then
-        rm "$DATA_LINK"
+        rm -f "$DATA_LINK"
     fi
-    LATEST_BACKUP=$(ls -t "$DATA_LINK".bak.* 2>/dev/null | head -1)
-    if [ -n "$LATEST_BACKUP" ]; then
-        mv "$LATEST_BACKUP" "$DATA_LINK"
+    # 找最近的 .bak 文件
+    local link_dir
+    link_dir=$(dirname "$DATA_LINK")
+    local link_name
+    link_name=$(basename "$DATA_LINK")
+    local latest_backup
+    latest_backup=$(find "$link_dir" -maxdepth 1 -name "${link_name}.bak.*" 2>/dev/null | sort -r | head -1)
+    if [ -n "$latest_backup" ] && [ -e "$latest_backup" ]; then
+        mv "$latest_backup" "$DATA_LINK"
         echo "  恢复: $DATA_LINK"
     else
         ln -s "$REAL_DATA_DIR" "$DATA_LINK"
