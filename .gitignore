@@ -217,3 +217,4 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /qwen3-4b/
+/EasyEdit/hparams/Steer/experiment_hparams/steer_eval/qwen3-4b/

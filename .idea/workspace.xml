@@ -4,13 +4,8 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b821ccd9-d6c6-44be-bc28-44bf8e67e15d" name="更改" comment="new: init">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/steer.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/steer.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/download-data.py" beforeDir="false" afterPath="$PROJECT_DIR$/download-data.py" afterDir="false" />
+    <list default="true" id="b821ccd9-d6c6-44be-bc28-44bf8e67e15d" name="更改" comment="feat: 更新数据">
+      <change afterPath="$PROJECT_DIR$/shell/steer_eval.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,6 +24,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="SYNC" />
   </component>
   <component name="McpProjectServerCommands">
     <commands />
@@ -36,23 +32,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.5092512113788792" />
-      <entry key="MS500" value="2.7287463627195265" />
-      <entry key="S2" value="7.193213288306259" />
-      <entry key="S5" value="13.317028183553722" />
-      <entry key="S10" value="18.509101448103696" />
-      <entry key="S30" value="24.572889800668218" />
-      <entry key="S60" value="26.659141376041358" />
-      <entry key="M2" value="27.92625296184492" />
-      <entry key="M5" value="28.96683325145367" />
-      <entry key="M10" value="29.431244588753255" />
-      <entry key="M15" value="29.607275971962565" />
-      <entry key="M30" value="29.79629015607995" />
-      <entry key="H1" value="29.897562130440402" />
-      <entry key="H2" value="30.035738887262074" />
-      <entry key="H4" value="30.78991606668374" />
-      <entry key="D1" value="37.6837583705883" />
-      <entry key="W1" value="42.03867085103513" />
+      <entry key="MS100" value="1.0019262357509635" />
+      <entry key="MS500" value="1.2863794744949393" />
+      <entry key="S2" value="1.731535610352163" />
+      <entry key="S5" value="1.8824582929829168" />
+      <entry key="S10" value="1.9393956069404201" />
+      <entry key="S30" value="2.0034846607673185" />
+      <entry key="S60" value="2.289083725724418" />
+      <entry key="M2" value="3.419803273065713" />
+      <entry key="M5" value="6.172251467294332" />
+      <entry key="M10" value="8.100759743947487" />
+      <entry key="M15" value="8.962697989705518" />
+      <entry key="M30" value="10.804676941361153" />
+      <entry key="H1" value="15.898454188393243" />
+      <entry key="H2" value="24.178225651276964" />
+      <entry key="H4" value="32.4277489110674" />
+      <entry key="D1" value="48.72631249453738" />
+      <entry key="W1" value="55.55619769568709" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -74,23 +70,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.4577869845995302" />
-      <entry key="MS500" value="2.7027726075879412" />
-      <entry key="S2" value="7.164962600975088" />
-      <entry key="S5" value="13.296237066012573" />
-      <entry key="S10" value="18.49483455203412" />
-      <entry key="S30" value="24.56659634989624" />
-      <entry key="S60" value="26.655725756113092" />
-      <entry key="M2" value="27.924463158523107" />
-      <entry key="M5" value="28.966090445720045" />
-      <entry key="M10" value="29.430867203918993" />
-      <entry key="M15" value="29.60702287233589" />
-      <entry key="M30" value="29.796162796180553" />
-      <entry key="H1" value="29.89749810739595" />
-      <entry key="H2" value="30.035703165166204" />
-      <entry key="H4" value="30.78988572551298" />
-      <entry key="D1" value="37.68374187288811" />
-      <entry key="W1" value="42.038667760655336" />
+      <entry key="MS100" value="0.9219357464665312" />
+      <entry key="MS500" value="1.2643770497841595" />
+      <entry key="S2" value="1.7238445275940013" />
+      <entry key="S5" value="1.879085097875523" />
+      <entry key="S10" value="1.937653023715465" />
+      <entry key="S30" value="2.0028842147038786" />
+      <entry key="S60" value="2.288740541899373" />
+      <entry key="M2" value="3.419536379147831" />
+      <entry key="M5" value="6.172046082320338" />
+      <entry key="M10" value="8.100621702958643" />
+      <entry key="M15" value="8.962595453655453" />
+      <entry key="M30" value="10.804616116780343" />
+      <entry key="H1" value="15.898412702895076" />
+      <entry key="H2" value="24.178194751019" />
+      <entry key="H4" value="32.427721034789336" />
+      <entry key="D1" value="48.726295703884134" />
+      <entry key="W1" value="55.55619442424526" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -113,9 +109,10 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHELLCHECK.PATH": "/Users/jerry/Library/Application Support/JetBrains/PyCharm2026.1/plugins/Shell Script/shellcheck",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "/Users/jerry/dev/steer",
+    "last_opened_file_path": "/Users/jerry/dev/steer/shell",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -127,6 +124,7 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/shell" />
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
@@ -154,7 +152,15 @@
       <option name="project" value="LOCAL" />
       <updated>1779370251302</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="feat: 更新数据">
+      <option name="closed" value="true" />
+      <created>1782107325150</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1782107325150</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -162,7 +168,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="new: init" />
-    <option name="LAST_COMMIT_MESSAGE" value="new: init" />
+    <MESSAGE value="feat: 更新数据" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: 更新数据" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/steer$run.coverage" NAME="run 覆盖结果" MODIFIED="1779356961222" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
