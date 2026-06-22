@@ -145,14 +145,15 @@ echo "Experiment:      $exp"
 echo "--------------------------------"
 
 # ===========================
-# best_multip_path 相对路径
+# best_multip_path 相对路径（指向项目根目录 output/ 下生成的 best multipliers）
+# 注：脚本会在第 188 行 `cd "$EASYEDIT_DIR"`，所以这里用 `../output/...` 才是项目根。
 # ===========================
 best_multip_path=None
 if [ "$use_best_multip" = true ] ; then
     if [ "$use_pca" = true ] ; then
-        best_multip_path="generation/$model/${dataset}/${gen_out_path}/pca/best_multipliers.json"
+        best_multip_path="../output/generation/$model/${dataset}/${gen_out_path}/pca/best_multipliers.json"
     else
-        best_multip_path="generation/$model/${dataset}/${gen_out_path}/${method}/best_multipliers.json"
+        best_multip_path="../output/generation/$model/${dataset}/${gen_out_path}/${method}/best_multipliers.json"
     fi
     echo "Using best multipliers from: $best_multip_path"
     multipliers=0
@@ -164,24 +165,27 @@ fi
 model_name_or_path="$PROJECT_ROOT/$model"
 
 # ===========================
-# Hparam 路径
+# Hparam 路径（指向项目根 hparams/，已被脚本软链到 EasyEdit 内对应位置）
 # ===========================
 steer_train_hparam_paths="[hparams/Steer/experiment_hparams/steer_eval/$model/${method}/generate_${method}.yaml]"
 apply_steer_hparam_paths="[hparams/Steer/experiment_hparams/steer_eval/$model/${method}/apply_${method}.yaml]"
-steer_vector_output_dirs="[vectors/$model/${dataset}/${gen_out_path}]"
-steer_vector_load_dir="[vectors/$model/${dataset}/${gen_out_path}]"
 
 # ===========================
-# 输出目录
+# 输出目录（项目根的 output/，不污染 EasyEdit 仓库）
+# 注：相对路径在 `cd $EASYEDIT_DIR` 之后解析为 $PROJECT_ROOT/output/...
 # ===========================
+OUTPUT_ROOT="$PROJECT_ROOT/output"
+steer_vector_output_dirs="[../output/vectors/$model/${dataset}/${gen_out_path}]"
+steer_vector_load_dir="[../output/vectors/$model/${dataset}/${gen_out_path}]"
+
 if [ "$use_pca" = true ] ; then
-    generation_output_dir=generation/$model/${dataset}/${gen_out_path}/pca/layer_${layers}_multip_${multipliers}
+    generation_output_dir=../output/generation/$model/${dataset}/${gen_out_path}/pca/layer_${layers}_multip_${multipliers}
 else
-    generation_output_dir=generation/$model/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}
+    generation_output_dir=../output/generation/$model/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}
 fi
 
-logdir=logs/${model}/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}.log
-mkdir -p "$EASYEDIT_DIR/logs/${model}/${dataset}/${gen_out_path}/${method}"
+logdir=$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}.log
+mkdir -p "$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}"
 
 # ===========================
 # 设备处理
