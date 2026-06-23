@@ -76,6 +76,8 @@ multipliers=3
 
 use_best_multip=false
 
+max_new_tokens=512
+
 exp=valid           # 在 validation split 上评估
 
 # ===========================
@@ -131,6 +133,9 @@ while [[ "$#" -gt 0 ]]; do
         --use_best_multip=*) use_best_multip="${1#*=}"; shift ;;
         --use_best_multip)   use_best_multip="$2"; shift; shift ;;
 
+        --max_new_tokens=*) max_new_tokens="${1#*=}"; shift ;;
+        --max_new_tokens)   max_new_tokens="$2"; shift; shift ;;
+
         --exp=*) exp="${1#*=}"; shift ;;
         --exp)   exp="$2"; shift; shift ;;
         *) echo "unknown: $1"; exit 1 ;;
@@ -157,6 +162,7 @@ echo "Evaluate:        $evaluate"
 echo "Layers:          $layers"
 echo "Multipliers:     $multipliers"
 echo "Best Multip:     $use_best_multip"
+echo "Max New Tokens:  $max_new_tokens"
 echo "Experiment:      $exp"
 echo "--------------------------------"
 
@@ -248,6 +254,7 @@ eval "$ENV_PREFIX" python examples/steer_eval.py \
     +multipliers=["$multipliers"] \
     +best_multip_path="$best_multip_path" \
     +exp="$exp" \
+    generation_params.max_new_tokens="$max_new_tokens" \
     2>&1 | tee "$logdir"
 
 

@@ -3,7 +3,7 @@ Steer 调参脚本：三阶段 Grid Search
 
   Phase 1: 粗搜索  5 layers × 4 multipliers = 20 组
     L ∈ {14, 18, 22, 26, 30}
-    M ∈ {1, 2, 3, 5}
+    M ∈ {1.5, 2.0, 2.5, 3.0}   # 1 无效、5 退化，取甜区
 
   Phase 2: 局部搜索  在 phase 1 最佳点附近细搜
     围绕 top-3 的 (L, M) 各扩 2 个邻居
@@ -77,12 +77,13 @@ DEFAULT_DATASET = "SteerEval/personality"
 DEFAULT_DEVICE = "mps"
 DEFAULT_DTYPE = "float16"
 DEFAULT_EXP = "valid"
+DEFAULT_MAX_NEW_TOKENS = 512
 
 # ---- 阶段定义 ----
 PHASE1_LAYERS = [14, 18, 22, 26, 30]
-PHASE1_MULTS = [1, 2, 3, 5]
+PHASE1_MULTS = [1.5, 2.0, 2.5, 3.0]
 
-PHASE3_LAYERS = [20, 22, 24]   # per-concept 细搜
+PHASE3_LAYERS = [20, 22, 24]
 PHASE3_MULTS = [2, 3, 4]
 
 
@@ -172,13 +173,17 @@ def run_one(
     gen_out_path: str,
     device: str = DEFAULT_DEVICE,
     dtype: str = DEFAULT_DTYPE,
+    max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     skip_run: bool = False,
     score_concurrency: int = 8,
 ) -> Dict[str, Any]:
     """跑一组 (L, M)：steer_eval → convert → score。返回 results 字典。"""
     out_dir = generation_dir(method, layer, mult, gen_out_path)
     score_path = score_json_path(method, layer, mult, gen_out_path)
-    result_json = PROJECT_ROOT / f"{gen_out_path}_L{layer}_M{mult}_result.json"
+    result_json = (
+        PROJECT_ROOT / "output" / "submission" / "qwen3-4b" / DEFAULT_DATASET
+        / gen_out_path / f"L{layer}_M{mult}_result.json"
+    )
 
     # ---- 1) steer_eval ----
     if not skip_run:
@@ -190,11 +195,12 @@ def run_one(
             "--generate_vector=true",
             "--generate_response=true",
             "--generate_orig_output=false",
-            "--evaluate=false",     # 我们自己打分（控制更细）
+            "--evaluate=false",
             f"--layers={layer}",
             f"--multipliers={mult}",
             f"--gen_out_path={gen_out_path}",
             f"--exp={DEFAULT_EXP}",
+            f"--max_new_tokens={max_new_tokens}",
         ]
         print(f"\n[RUN] L={layer} M={mult} -> steer_eval.sh")
         print("      " + " ".join(cmd[:6]) + " ...")
@@ -262,6 +268,9 @@ def phase_grid(
     mults: List[float],
     phase_name: str,
     gen_out_path: str,
+    device: str = DEFAULT_DEVICE,
+    dtype: str = DEFAULT_DTYPE,
+    max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     skip_run: bool = False,
 ) -> List[Dict[str, Any]]:
     """通用 grid search：遍历所有 (L, M) 组合。"""
@@ -283,7 +292,8 @@ def phase_grid(
 
     for i, (L, M) in enumerate(pending, 1):
         print(f"\n----- [{i}/{len(pending)}] L={L} M={M} -----")
-        row = run_one(method, L, M, gen_out_path, skip_run=skip_run)
+        row = run_one(method, L, M, gen_out_path, device=device, dtype=dtype,
+                      max_new_tokens=max_new_tokens, skip_run=skip_run)
         rows = upsert_result(method, row)
         if row["status"] == "ok":
             print(f"  → HM={row['mean_hm']:.4f}  (CS={row['mean_cs']:.2f} "
@@ -294,14 +304,17 @@ def phase_grid(
     return load_results(method)
 
 
-def phase1(method: str, skip_run: bool = False) -> List[Dict[str, Any]]:
+def phase1(method: str, skip_run: bool = False, device: str = DEFAULT_DEVICE,
+           dtype: str = DEFAULT_DTYPE, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> List[Dict[str, Any]]:
     return phase_grid(
         method, PHASE1_LAYERS, PHASE1_MULTS, "phase1",
         gen_out_path=f"tune_{method}_phase1", skip_run=skip_run,
+        device=device, dtype=dtype, max_new_tokens=max_new_tokens,
     )
 
 
-def phase2(method: str, skip_run: bool = False) -> List[Dict[str, Any]]:
+def phase2(method: str, skip_run: bool = False, device: str = DEFAULT_DEVICE,
+           dtype: str = DEFAULT_DTYPE, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> List[Dict[str, Any]]:
     """围绕 phase1 的 top-3 各扩邻居。"""
     rows = load_results(method)
     valid = [r for r in rows if r.get("status") == "ok"]
@@ -329,6 +342,7 @@ def phase2(method: str, skip_run: bool = False) -> List[Dict[str, Any]]:
     return phase_grid(
         method, layers, mults, "phase2",
         gen_out_path=f"tune_{method}_phase2", skip_run=skip_run,
+        device=device, dtype=dtype, max_new_tokens=max_new_tokens,
     )
 
 
@@ -385,7 +399,7 @@ def analyze(method: str) -> None:
 
     print(f"\n  启示：")
     print(f"  - 极难的 concept（HM<0.5）可能需要单独选 layer/M（见 phase3）")
-    print(f"  - 极容易的 concept（HM>2.5）可以减 multiplier 省 FS 损耗")
+    print(f"  - 极容易的 concept（HM>1.5）可以减 multiplier 省 FS 损耗")
     print(f"  - 整体都低 → 换方法（caa → reps）")
 
 
@@ -431,6 +445,7 @@ def main() -> int:
         p.add_argument("--method", default="caa")
         p.add_argument("--device", default=DEFAULT_DEVICE)
         p.add_argument("--dtype", default=DEFAULT_DTYPE)
+        p.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
         p.add_argument("--skip-run", action="store_true",
                        help="跳过 steer_eval，只读已有产物 + 跑 convert/score")
 
@@ -457,10 +472,12 @@ def main() -> int:
     skip_run = getattr(args, "skip_run", False) or os.environ.get("TUNE_SKIP_RUN") == "true"
 
     if args.cmd == "phase1":
-        phase1(args.method, skip_run=skip_run)
+        phase1(args.method, skip_run=skip_run, device=args.device,
+               dtype=args.dtype, max_new_tokens=args.max_new_tokens)
         best(args.method)
     elif args.cmd == "phase2":
-        phase2(args.method, skip_run=skip_run)
+        phase2(args.method, skip_run=skip_run, device=args.device,
+               dtype=args.dtype, max_new_tokens=args.max_new_tokens)
         best(args.method)
     elif args.cmd == "phase3":
         phase3(args.method, skip_run=skip_run)

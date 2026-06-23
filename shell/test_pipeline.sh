@@ -91,8 +91,6 @@ if [ $TEST_STATUS -ne 0 ]; then
 fi
 
 # 找 generation 产物
-# 实际结构：$GEN_DIR/<method>/layer_<L>_multip_<M>/all_generation_results_<exp>.json
-# 即 GEN_DIR 之下还有两层目录，所以用 */*/ 匹配
 GEN_FILE=$(ls -1 "$GEN_DIR"/*/*/all_generation_results_*.json 2>/dev/null | head -1)
 if [ -z "$GEN_FILE" ]; then
     echo "❌ 找不到 generation 输出: $GEN_DIR/*/*/all_generation_results_*.json"
