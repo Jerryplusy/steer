@@ -6,6 +6,7 @@
       <excludeFolder url="file://$MODULE_DIR$/EasyEdit/logs" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
       <excludeFolder url="file://$MODULE_DIR$/data_test" />
+      <excludeFolder url="file://$MODULE_DIR$/output" />
       <excludeFolder url="file://$MODULE_DIR$/qwen3-4b" />
     </content>
     <orderEntry type="jdk" jdkName="steer" jdkType="Python SDK" />

@@ -5,16 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b821ccd9-d6c6-44be-bc28-44bf8e67e15d" name="更改" comment="fix: 细节修复">
-      <change afterPath="$PROJECT_DIR$/shell/data_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/steer.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/steer.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/config/scorer.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/config/scorer.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/SteerEval/personality/train.json" beforeDir="false" afterPath="$PROJECT_DIR$/data/SteerEval/personality/train.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/SteerEval/personality/valid.json" beforeDir="false" afterPath="$PROJECT_DIR$/data/SteerEval/personality/valid.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/download-data.py" beforeDir="false" afterPath="$PROJECT_DIR$/download-data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shell/prepare.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/prepare.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shell/convert.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/convert.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shell/score.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/score.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shell/steer_eval.sh" beforeDir="false" afterPath="$PROJECT_DIR$/shell/steer_eval.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shell/tune.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/tune.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shell/test_pipeline.sh" beforeDir="false" afterPath="$PROJECT_DIR$/shell/test_pipeline.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -217,7 +215,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782124961970</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782190864667</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1782190864667</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

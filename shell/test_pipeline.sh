@@ -4,7 +4,7 @@
 #
 #
 # 用法：
-#   ./shell/test_pipeline.sh                              # mps + caa
+#   ./shell/test_pipeline.sh                              # mps + caa, multip=1（smoke）
 #   ./shell/test_pipeline.sh --device=cuda:0              # 改设备
 #   ./shell/test_pipeline.sh --method=reps                # 换方法
 #   ./shell/test_pipeline.sh --layers=22 --multipliers=2  # 改超参
@@ -32,35 +32,24 @@ GEN_OUT_PATH="test_5samples"
 
 # 输出路径（与 steer_eval.sh 的 generation_output_dir 拼接规则一致）
 GEN_DIR="$PROJECT_ROOT/output/generation/qwen3-4b/SteerEval/personality/${GEN_OUT_PATH}"
-SUBMISSION_JSON="$PROJECT_ROOT/${GEN_OUT_PATH}_result.json"
+SUBMISSION_JSON="$PROJECT_ROOT/output/submission/qwen3-4b/SteerEval/personality/${GEN_OUT_PATH}_result.json"
 SCORE_JSON="$PROJECT_ROOT/output/evaluation/qwen3-4b/SteerEval/personality/${GEN_OUT_PATH}_scores.json"
 
 SKIP_SCORE="${SKIP_SCORE:-false}"
 
 # ===========================
-# 工具：无论成功失败都恢复软链
-# 用 find 而不是 ls glob（zsh 下更稳）
+# 工具：无论成功失败都把 EasyEdit/data 恢复回真实数据
 # ===========================
 restore_symlink() {
     set +e   # trap 内不允许因小错退出
-    # 删掉当前的软链（如果有）
     if [ -L "$DATA_LINK" ]; then
         rm -f "$DATA_LINK"
+    elif [ -e "$DATA_LINK" ]; then
+        echo "  EasyEdit/data 是实体目录，不改动"
+        return
     fi
-    # 找最近的 .bak 文件
-    local link_dir
-    link_dir=$(dirname "$DATA_LINK")
-    local link_name
-    link_name=$(basename "$DATA_LINK")
-    local latest_backup
-    latest_backup=$(find "$link_dir" -maxdepth 1 -name "${link_name}.bak.*" 2>/dev/null | sort -r | head -1)
-    if [ -n "$latest_backup" ] && [ -e "$latest_backup" ]; then
-        mv "$latest_backup" "$DATA_LINK"
-        echo "  恢复: $DATA_LINK"
-    else
-        ln -s "$REAL_DATA_DIR" "$DATA_LINK"
-        echo "  重建: $DATA_LINK -> $REAL_DATA_DIR"
-    fi
+    ln -s "$REAL_DATA_DIR" "$DATA_LINK"
+    echo "  恢复: $DATA_LINK -> $REAL_DATA_DIR"
 }
 trap restore_symlink EXIT
 
@@ -71,17 +60,12 @@ echo "===== [1/6] 准备 5 个测试样本 ====="
 python "$PROJECT_ROOT/shell/prepare.py" --n 5 --concept L1_1
 
 # ===========================
-# 2. 切换软链
+# 2. 通过 STEER_DATA_DIR 让 steer_eval 用 data_test/
 # ===========================
 echo ""
-echo "===== [2/6] 切换 EasyEdit/data -> data_test/ ====="
-if [ -L "$DATA_LINK" ] || [ -e "$DATA_LINK" ]; then
-    BACKUP_PATH="$DATA_LINK.bak.$(date +%s)"
-    mv "$DATA_LINK" "$BACKUP_PATH"
-    echo "  备份原链接: $BACKUP_PATH"
-fi
-ln -s "$TEST_DATA_DIR" "$DATA_LINK"
-echo "  $DATA_LINK -> $TEST_DATA_DIR"
+echo "===== [2/6] 设置 STEER_DATA_DIR -> data_test/ ====="
+export STEER_DATA_DIR="$TEST_DATA_DIR"
+echo "  STEER_DATA_DIR=$STEER_DATA_DIR"
 
 # ===========================
 # 3. 跑 steer_eval（生成 vector + 回复）
@@ -96,7 +80,7 @@ set +e
     --generate_orig_output=false \
     --evaluate=false \
     --layers=20 \
-    --multipliers=3 \
+    --multipliers=1 \
     --gen_out_path="$GEN_OUT_PATH" \
     "${EXTRA_ARGS[@]}"
 TEST_STATUS=$?
@@ -107,9 +91,11 @@ if [ $TEST_STATUS -ne 0 ]; then
 fi
 
 # 找 generation 产物
-GEN_FILE=$(ls -1 "$GEN_DIR"/*/all_generation_results_*.json 2>/dev/null | head -1)
+# 实际结构：$GEN_DIR/<method>/layer_<L>_multip_<M>/all_generation_results_<exp>.json
+# 即 GEN_DIR 之下还有两层目录，所以用 */*/ 匹配
+GEN_FILE=$(ls -1 "$GEN_DIR"/*/*/all_generation_results_*.json 2>/dev/null | head -1)
 if [ -z "$GEN_FILE" ]; then
-    echo "❌ 找不到 generation 输出: $GEN_DIR/*/all_generation_results_*.json"
+    echo "❌ 找不到 generation 输出: $GEN_DIR/*/*/all_generation_results_*.json"
     exit 1
 fi
 echo "  generation: $GEN_FILE"

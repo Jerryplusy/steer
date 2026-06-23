@@ -9,8 +9,11 @@
 #       --method=caa \
 #       --layers=20 --multipliers=3 \
 #       --generate_vector=true --generate_response=true \
-#       --generate_orig_output=true --evaluate=true \
+#       --generate_orig_output=true --evaluate=false \
 #       --exp=valid
+#
+# 注意：--evaluate 必须为 false（EasyEdit 内置 evaluator 文件名对不上 + 占位 API key，
+#       会直接报错）。打分用 shell/score.py，见 RUNBOOK §3。
 # ===========================================================================
 
 set -e
@@ -21,14 +24,27 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EASYEDIT_DIR="$PROJECT_ROOT/EasyEdit"
 
-if [ ! -e "$EASYEDIT_DIR/data" ]; then
-    ln -s "$PROJECT_ROOT/data" "$EASYEDIT_DIR/data"
-    echo "[setup] linked $PROJECT_ROOT/data -> $EASYEDIT_DIR/data"
+STEER_DATA_DIR="${STEER_DATA_DIR:-$PROJECT_ROOT/data}"
+DATA_LINK="$EASYEDIT_DIR/data"
+if [ -L "$DATA_LINK" ]; then
+    cur_target="$(readlink "$DATA_LINK")"
+    case "$cur_target" in
+        /*) ;;
+        *)  cur_target="$EASYEDIT_DIR/$cur_target" ;;
+    esac
+    if [ "$cur_target" != "$STEER_DATA_DIR" ]; then
+        echo "[setup] ⚠️ EasyEdit/data -> $cur_target（非目标 $STEER_DATA_DIR），校正中"
+        rm -f "$DATA_LINK"
+        ln -s "$STEER_DATA_DIR" "$DATA_LINK"
+        echo "[setup] linked $STEER_DATA_DIR -> $DATA_LINK"
+    fi
+elif [ -e "$DATA_LINK" ]; then
+    echo "[setup] EasyEdit/data 是实体目录，保持原样"
+else
+    ln -s "$STEER_DATA_DIR" "$DATA_LINK"
+    echo "[setup] linked $STEER_DATA_DIR -> $DATA_LINK"
 fi
 
-# 项目本地的 hparams（针对 qwen3-4b 的 CAA/RePS/Prompt 配置）放在
-# 项目根目录的 hparams/qwen3-4b/，软链到 EasyEdit 里 SteerEval 期望的位置，
-# 这样不污染 EasyEdit 仓库本体（pull 时不会冲突）。
 HPARAM_TARGET_DIR="$EASYEDIT_DIR/hparams/Steer/experiment_hparams/steer_eval"
 if [ ! -e "$HPARAM_TARGET_DIR/qwen3-4b" ]; then
     ln -s "$PROJECT_ROOT/hparams/qwen3-4b" "$HPARAM_TARGET_DIR/qwen3-4b"

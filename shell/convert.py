@@ -82,6 +82,10 @@ def main() -> int:
     if args.output is None:
         args.output = f"{args.team}_result.json"
 
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(submission, f, ensure_ascii=False, indent=2)
 
