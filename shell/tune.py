@@ -56,6 +56,21 @@ SHELL_DIR = PROJECT_ROOT / "shell"
 STEER_EVAL_SH = SHELL_DIR / "steer_eval.sh"
 CONVERT_PY = SHELL_DIR / "convert.py"
 SCORE_PY = SHELL_DIR / "score.py"
+DATA_UTILS = SHELL_DIR / "data_utils.py"
+
+def ensure_full_data_has_llm_description() -> None:
+
+    import sys
+    sys.path.insert(0, str(SHELL_DIR))
+    from data_utils import patch_file
+
+    data_dir = PROJECT_ROOT / "data" / "SteerEval" / "personality"
+    for split in ("train", "valid"):
+        path = data_dir / f"{split}.json"
+        if path.exists():
+            patch_file(str(path), verbose=True)
+
+ensure_full_data_has_llm_description()
 
 # 默认数据集
 DEFAULT_DATASET = "SteerEval/personality"

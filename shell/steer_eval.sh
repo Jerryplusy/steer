@@ -203,6 +203,14 @@ cd "$EASYEDIT_DIR"
 # 把 EasyEdit 加到 PYTHONPATH，让 steer_eval.py 能 `import steer`（steer 包在 EasyEdit/steer/）
 export PYTHONPATH="$EASYEDIT_DIR:${PYTHONPATH:-}"
 
+HPARMS_LINK="examples/hparams"
+HPARMS_BACKUP=""
+if [ ! -e "$HPARMS_LINK" ]; then
+    ln -s "../hparams" "$HPARMS_LINK"
+    HPARMS_TEMP_CREATED=true
+fi
+trap 'if [ "$HPARMS_TEMP_CREATED" = "true" ] && [ -L "'"$HPARMS_LINK"'" ]; then rm "'"$HPARMS_LINK"'"; echo "  清理临时软链: '"$HPARMS_LINK"'"; fi' EXIT
+
 eval "$ENV_PREFIX" python examples/steer_eval.py \
     model_name_or_path="${model_name_or_path}" \
     device="${device}" \

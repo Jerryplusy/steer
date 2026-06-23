@@ -24,11 +24,6 @@ def clone_easyedit() -> None:
 
 def download_personality_dataset() -> None:
     """下载 SteerEval/personality 的 train.json 与 valid.json。
-
-    注意：传给 hf_hub_download 的 filename 是 'personality/train.json'，
-    若把 local_dir 设成 './data/SteerEval/personality' 会得到
-    './data/SteerEval/personality/personality/train.json' 这种嵌套路径。
-    所以 local_dir 必须是 './data/SteerEval'。
     """
     os.makedirs(DATA_DIR, exist_ok=True)
     for split in ("train.json", "valid.json"):
@@ -60,6 +55,14 @@ def main() -> int:
     print("\n数据准备完成。")
     print(f"  - 仓库: {EASYEDIT_DIR}")
     print(f"  - 数据: {os.path.join(DATA_DIR, 'personality')}")
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "shell"))
+        from shell.data_utils import patch_file
+        print("\n[patch] 注入 llm_description 字段...")
+        for split in ("train", "valid"):
+            patch_file(os.path.join(DATA_DIR, "personality", f"{split}.json"))
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] patch llm_description 失败: {e}", file=sys.stderr)
     return 0
 
 
