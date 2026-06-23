@@ -11,9 +11,6 @@
 #       --generate_vector=true --generate_response=true \
 #       --generate_orig_output=true --evaluate=false \
 #       --exp=valid
-#
-# 注意：--evaluate 必须为 false（EasyEdit 内置 evaluator 文件名对不上 + 占位 API key，
-#       会直接报错）。打分用 shell/score.py，见 RUNBOOK §3。
 # ===========================================================================
 
 set -e
@@ -78,6 +75,8 @@ use_best_multip=false
 
 max_new_tokens=512
 
+clean=false
+
 exp=valid           # 在 validation split 上评估
 
 # ===========================
@@ -136,6 +135,9 @@ while [[ "$#" -gt 0 ]]; do
         --max_new_tokens=*) max_new_tokens="${1#*=}"; shift ;;
         --max_new_tokens)   max_new_tokens="$2"; shift; shift ;;
 
+        --clean=*) clean="${1#*=}"; shift ;;
+        --clean)   clean="$2"; shift; shift ;;
+
         --exp=*) exp="${1#*=}"; shift ;;
         --exp)   exp="$2"; shift; shift ;;
         *) echo "unknown: $1"; exit 1 ;;
@@ -163,13 +165,10 @@ echo "Layers:          $layers"
 echo "Multipliers:     $multipliers"
 echo "Best Multip:     $use_best_multip"
 echo "Max New Tokens:  $max_new_tokens"
+echo "Clean:           $clean"
 echo "Experiment:      $exp"
 echo "--------------------------------"
 
-# ===========================
-# best_multip_path 相对路径（指向项目根目录 output/ 下生成的 best multipliers）
-# 注：脚本会在第 188 行 `cd "$EASYEDIT_DIR"`，所以这里用 `../output/...` 才是项目根。
-# ===========================
 best_multip_path=None
 if [ "$use_best_multip" = true ] ; then
     if [ "$use_pca" = true ] ; then
@@ -209,6 +208,14 @@ fi
 logdir=$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}.log
 mkdir -p "$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}"
 
+if [ "$clean" = true ] ; then
+    CLEAN_DIR="$OUTPUT_ROOT/generation/$model/${dataset}/${gen_out_path}"
+    if [ -d "$CLEAN_DIR" ]; then
+        rm -rf "$CLEAN_DIR"
+        echo "[clean] 已清空 $CLEAN_DIR（强制重跑）"
+    fi
+fi
+
 # ===========================
 # 设备处理
 # ===========================
@@ -222,7 +229,6 @@ fi
 # ===========================
 cd "$EASYEDIT_DIR"
 
-# 把 EasyEdit 加到 PYTHONPATH，让 steer_eval.py 能 `import steer`（steer 包在 EasyEdit/steer/）
 export PYTHONPATH="$EASYEDIT_DIR:${PYTHONPATH:-}"
 
 HPARMS_LINK="examples/hparams"

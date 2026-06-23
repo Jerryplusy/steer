@@ -127,7 +127,6 @@ else
         echo "❌ 缺少 config/scorer.yaml"
         exit 1
     fi
-    # API key 未配则提醒但继续（score.py 会警告）
     if grep -q "YOUR_API_KEY_HERE" "$PROJECT_ROOT/config/scorer.yaml"; then
         echo "  ⚠️  config/scorer.yaml 还是占位 api_key，会 CS/IS/FS 全 0 分"
         echo "  配好后再跑：export SCORER_API_KEY=sk-xxx"
