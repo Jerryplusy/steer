@@ -1,41 +1,5 @@
 """
 Steer 调参脚本：三阶段 Grid Search
-
-  Phase 1: 粗搜索  5 layers × 4 multipliers = 20 组
-    L ∈ {14, 18, 22, 26, 30}
-    M ∈ {1.5, 2.0, 2.5, 3.0}   # 1 无效、5 退化，取甜区
-
-  Phase 2: 局部搜索  在 phase 1 最佳点附近细搜
-    围绕 top-3 的 (L, M) 各扩 2 个邻居
-
-  Phase 3: per-concept 搜索  每个 concept 单独选最优 (L, M)
-    L ∈ {20, 22, 24}  M ∈ {2, 3, 4}
-
-  Analyze: 读 score_results.json 排序找最差 concept
-  Compare: 同时跑 RePS 做方法对比
-
-每个 (L, M) 的产物：
-  output/generation/qwen3-4b/.../method/grid_L{L}_M{M}/...
-  output/evaluation/qwen3-4b/.../method/grid_L{L}_M{M}_scores.json
-
-主索引
-  output/tune/<method>/results.csv   (L, M, mean_hm, mean_cs, mean_is, mean_fs, n_samples, ts)
-  output/tune/<method>/results.json  同上，更详细
-
-用法：
-  # 一阶段一阶段跑
-  python shell/tune.py phase1 --method=caa
-  python shell/tune.py phase2 --method=caa
-  python shell/tune.py phase3 --method=caa
-
-  # 旁路
-  python shell/tune.py analyze --method=caa
-  python shell/tune.py best --method=caa
-  python shell/tune.py compare --methods=caa,reps
-
-环境变量：
-  TUNE_SKIP_RUN=true  跳过 steer_eval.sh 调用，只读取已有产物（用于
-                      跑过 steer_eval 但没跑 tune 的场景）
 """
 from __future__ import annotations
 
@@ -43,13 +7,13 @@ import argparse
 import csv
 import json
 import os
-import re
+import signal
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SHELL_DIR = PROJECT_ROOT / "shell"
@@ -78,9 +42,10 @@ DEFAULT_DEVICE = "mps"
 DEFAULT_DTYPE = "float16"
 DEFAULT_EXP = "valid"
 DEFAULT_MAX_NEW_TOKENS = 512
+GROUP_TIMEOUT = 25 * 60
 
 # ---- 阶段定义 ----
-PHASE1_LAYERS = [14, 18, 22, 26, 30]
+PHASE1_LAYERS = [18, 22, 26, 30]
 PHASE1_MULTS = [1.5, 2.0, 2.5, 3.0]
 
 PHASE3_LAYERS = [20, 22, 24]
@@ -205,7 +170,17 @@ def run_one(
         print(f"\n[RUN] L={layer} M={mult} -> steer_eval.sh")
         print("      " + " ".join(cmd[:6]) + " ...")
         t0 = time.time()
-        rc = subprocess.run(cmd, cwd=PROJECT_ROOT).returncode
+        proc = subprocess.Popen(cmd, cwd=PROJECT_ROOT, start_new_session=True)
+        try:
+            rc = proc.wait(timeout=GROUP_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            dt = time.time() - t0
+            print(f"超时({dt/60:.1f} min)，杀进程组并跳过该组")
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except Exception:
+                pass
+            return {"layer": layer, "multiplier": mult, "status": "timeout"}
         dt = time.time() - t0
         print(f"      done in {dt/60:.1f} min, rc={rc}")
         if rc != 0:
