@@ -285,6 +285,7 @@ def phase_grid(
         return list(existing.values())
 
     # 保存本阶段的网格
+    phase_state_path(method, phase_name).parent.mkdir(parents=True, exist_ok=True)
     phase_state_path(method, phase_name).write_text(
         json.dumps({"layers": layers, "mults": mults, "gen_out_path": gen_out_path}, indent=2),
         encoding="utf-8",
@@ -348,13 +349,8 @@ def phase2(method: str, skip_run: bool = False, device: str = DEFAULT_DEVICE,
 
 def phase3(method: str, skip_run: bool = False) -> List[Dict[str, Any]]:
     """per-concept 细搜：每个 concept 单独选最优 (L, M)。
-    实现思路：复用 phase2 的 best (L, M) 作为起点，对每个 concept
-    微调 L∈{L0-2,L0,L0+2}、M∈{M0-1,M0,M0+1}。
     """
     print("\n===== phase3 (per-concept 细搜) =====")
-    # 这里只给"框架"——per-concept 细搜需要改 steer_eval.sh 支持
-    # --concept 单跑模式。建议：先在 phase2 拿到的 best (L, M) 上看坏 sample
-    # （见 `analyze`），手动决定要不要做 phase3。
     return load_results(method)
 
 
