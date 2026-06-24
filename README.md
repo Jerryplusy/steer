@@ -98,3 +98,60 @@ python download-data.py
 conda activate steer
 python run.py
 ```
+
+---
+
+### 6.1 smoke 测试
+
+```bash
+./shell/test_pipeline.sh
+```
+
+### 6.2 造调参子集
+
+```bash
+python shell/prepare.py --n_concepts=8 --n=5        # 多 concept 子集
+python shell/prepare.py --concept=L1_1 --n=5        # 单 concept
+```
+
+### 6.3 单组 steer_eval（子集调参）
+
+```bash
+STEER_DATA_DIR="$PWD/data_test" ./shell/steer_eval.sh \
+    --method=caa --layers=20 --multipliers=2 \
+    --generate_orig_output=true --evaluate=false \
+    --gen_out_path=test_m2 --exp=valid --clean=true
+```
+
+### 6.4 转格式 + 打分
+
+```bash
+GEN=output/generation/qwen3-4b/SteerEval/personality/test_m2/caa/layer_20_multip_2/all_generation_results_valid.json
+SUB=output/submission/qwen3-4b/SteerEval/personality/test_m2_result.json
+SC=output/evaluation/qwen3-4b/SteerEval/personality/test_m2_scores.json
+python shell/convert.py --input "$GEN" --output "$SUB" --team test_m2
+python shell/score.py --input "$SUB" --output "$SC" --concurrency 4
+```
+
+### 6.5 子集自动 grid
+
+```bash
+STEER_DATA_DIR="$PWD/data_test" python shell/tune.py phase1 --method=caa
+python shell/tune.py best --method=caa
+STEER_DATA_DIR="$PWD/data_test" python shell/tune.py phase2 --method=caa
+python shell/tune.py analyze --method=caa
+```
+
+### 6.6 全量推理
+
+```bash
+./shell/steer_eval.sh \
+    --device=mps --dtype=float16 --method=caa \
+    --generate_vector=true --generate_response=true \
+    --generate_orig_output=false --evaluate=false \
+    --layers=22 --multipliers=2.0 --max_new_tokens=512 \
+    --gen_out_path=caa_final --exp=valid --clean=true
+
+GEN=output/generation/qwen3-4b/SteerEval/personality/caa_final/caa/layer_22_multip_2.0/all_generation_results_valid.json
+python shell/convert.py --input "$GEN" --output 参赛队伍名称_result.json --team 参赛队伍名称
+```
