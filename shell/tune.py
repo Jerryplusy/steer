@@ -41,8 +41,8 @@ DEFAULT_DATASET = "SteerEval/personality"
 DEFAULT_DEVICE = "mps"
 DEFAULT_DTYPE = "float16"
 DEFAULT_EXP = "valid"
-DEFAULT_MAX_NEW_TOKENS = 512
-GROUP_TIMEOUT = 25 * 60
+DEFAULT_MAX_NEW_TOKENS = 128
+GROUP_TIMEOUT = 60 * 60
 
 # ---- 阶段定义 ----
 PHASE1_LAYERS = [18, 22, 26, 30]
@@ -131,6 +131,27 @@ def score_json_path(method: str, layer: int, mult: float, gen_out_path: str) -> 
 # ===========================================================================
 # 单组 (L, M) 的运行 + 评分
 # ===========================================================================
+def _kill_proc_tree(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        pass
+    proc.kill()
+    try:
+        proc.wait(timeout=10)
+    except Exception:
+        pass
+    subprocess.run(
+        "pkill -9 -f 'examples/steer_eval.py'",
+        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        "pkill -9 -f 'shell/steer_eval.sh'",
+        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    time.sleep(3)
+
+
 def run_one(
     method: str,
     layer: int,
@@ -176,10 +197,7 @@ def run_one(
         except subprocess.TimeoutExpired:
             dt = time.time() - t0
             print(f"超时({dt/60:.1f} min)，杀进程组并跳过该组")
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except Exception:
-                pass
+            _kill_proc_tree(proc)
             return {"layer": layer, "multiplier": mult, "status": "timeout"}
         dt = time.time() - t0
         print(f"      done in {dt/60:.1f} min, rc={rc}")

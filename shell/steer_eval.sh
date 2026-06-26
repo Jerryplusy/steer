@@ -260,6 +260,7 @@ eval "$ENV_PREFIX" python examples/steer_eval.py \
     +multipliers=["$multipliers"] \
     +best_multip_path="$best_multip_path" \
     +exp="$exp" \
+    +enable_thinking=false \
     generation_params.max_new_tokens="$max_new_tokens" \
     2>&1 | tee "$logdir"
 
