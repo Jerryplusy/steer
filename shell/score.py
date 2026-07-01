@@ -145,10 +145,13 @@ def harmonic_mean(cs: float, is_: float, fs: float) -> float:
 
 
 def parse_score(text: str) -> int:
-    m = re.search(r"\b([0-4])\b", text)
+    cleaned = re.sub(r"<think>.*?</think>", " ", text, flags=re.DOTALL)
+    if "</think>" in cleaned and "<think>" not in cleaned:
+        cleaned = cleaned.split("</think>", 1)[1]
+    m = re.search(r"\b([0-4])\b", cleaned)
     if m:
         return int(m.group(1))
-    m = re.search(r"\d+", text)
+    m = re.search(r"\d+", cleaned)
     if m:
         v = int(m.group(0))
         return max(0, min(4, v))

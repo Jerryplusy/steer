@@ -308,30 +308,49 @@ def phase1(method: str, skip_run: bool = False, device: str = DEFAULT_DEVICE,
 
 
 def phase2(method: str, skip_run: bool = False, device: str = DEFAULT_DEVICE,
-           dtype: str = DEFAULT_DTYPE, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> List[Dict[str, Any]]:
-    """围绕 phase1 的 top-3 各扩邻居。"""
-    rows = load_results(method)
-    valid = [r for r in rows if r.get("status") == "ok"]
-    if len(valid) < 1:
-        print("❌ phase2 需要 phase1 至少 1 个 ok 结果")
-        return rows
-    top3 = sorted(valid, key=lambda r: -r["mean_hm"])[:3]
+           dtype: str = DEFAULT_DTYPE, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
+           seeds: str = "") -> List[Dict[str, Any]]:
+    if seeds:
+        expanded = []
+        for part in seeds.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            L_s, M_s = part.split(":")
+            expanded.append({"layer": int(L_s), "multiplier": float(M_s)})
+        print(f"  phase2 手动 seeds: {[(r['layer'], r['multiplier']) for r in expanded]}")
+    else:
+        rows = load_results(method)
+        valid = [r for r in rows if r.get("status") == "ok"]
+        if len(valid) < 1:
+            print("❌ phase2 需要 phase1 至少 1 个 ok 结果（或用 --seeds 手动指定）")
+            return rows
+        top3 = sorted(valid, key=lambda r: -r["mean_hm"])[:3]
+        seen_layers = set()
+        expanded = []
+        for r in top3:
+            if r["layer"] in seen_layers:
+                continue
+            seen_layers.add(r["layer"])
+            expanded.append(r)
+        print(f"  phase2 top(去重后): {[(r['layer'], r['multiplier']) for r in expanded]}")
 
     layers: List[int] = []
     mults: List[float] = []
-    for r in top3:
+    for r in expanded:
         L0, M0 = r["layer"], r["multiplier"]
-        for dL in (-2, -1, 0, 1, 2):
+        for dL in (-1, 0, 1):
             L = L0 + dL
             if L not in layers and 8 <= L <= 34:
                 layers.append(L)
-        for dM in (-1.0, -0.5, 0, 0.5, 1.0):
+        for dM in (-0.5, 0, 0.5):
             M = round(M0 + dM, 1)
             if M > 0 and M not in mults and M <= 10:
                 mults.append(M)
 
     layers.sort()
     mults.sort()
+    print(f"  phase2 top(去重后): {[(r['layer'], r['multiplier']) for r in expanded]}")
     print(f"  phase2 grid: layers={layers}  mults={mults}  (= {len(layers)*len(mults)} 组)")
     return phase_grid(
         method, layers, mults, "phase2",
@@ -443,6 +462,9 @@ def main() -> int:
 
     p2 = sub.add_parser("phase2", help="局部搜：围绕 phase1 top-3 邻居")
     add_common(p2)
+    p2.add_argument("--seeds", default="",
+                    help="手动指定起点 L:M,L:M,...（如 16:4.0,18:3.0,26:2.5）"
+                         "，覆盖默认 top-3；子集变化旧分数不可比时用")
 
     p3 = sub.add_parser("phase3", help="per-concept 细搜（需支持单 concept 模式）")
     add_common(p3)
@@ -466,7 +488,8 @@ def main() -> int:
         best(args.method)
     elif args.cmd == "phase2":
         phase2(args.method, skip_run=skip_run, device=args.device,
-               dtype=args.dtype, max_new_tokens=args.max_new_tokens)
+               dtype=args.dtype, max_new_tokens=args.max_new_tokens,
+               seeds=getattr(args, "seeds", ""))
         best(args.method)
     elif args.cmd == "phase3":
         phase3(args.method, skip_run=skip_run)
