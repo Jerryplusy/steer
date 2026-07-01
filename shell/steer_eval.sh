@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===========================================================================
-# Steer Eval 启动脚本 Qwen3-4b/mps 模型优化
+# Steer Eval 启动脚本 — Qwen3-4b/mps CAA
 #
 #
 # 用法：
@@ -9,47 +9,19 @@
 #       --method=caa \
 #       --layers=20 --multipliers=3 \
 #       --generate_vector=true --generate_response=true \
-#       --generate_orig_output=true --evaluate=false \
+#       --generate_orig_output=false --evaluate=false \
 #       --exp=valid
 # ===========================================================================
 
 set -e
 
 # ===========================
-# 路径准备
+# 路径
 # ===========================
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EASYEDIT_DIR="$PROJECT_ROOT/EasyEdit"
-
-STEER_DATA_DIR="${STEER_DATA_DIR:-$PROJECT_ROOT/data}"
-DATA_LINK="$EASYEDIT_DIR/data"
-if [ -L "$DATA_LINK" ]; then
-    cur_target="$(readlink "$DATA_LINK")"
-    case "$cur_target" in
-        /*) ;;
-        *)  cur_target="$EASYEDIT_DIR/$cur_target" ;;
-    esac
-    if [ "$cur_target" != "$STEER_DATA_DIR" ]; then
-        echo "[setup] ⚠️ EasyEdit/data -> $cur_target（非目标 $STEER_DATA_DIR），校正中"
-        rm -f "$DATA_LINK"
-        ln -s "$STEER_DATA_DIR" "$DATA_LINK"
-        echo "[setup] linked $STEER_DATA_DIR -> $DATA_LINK"
-    fi
-elif [ -e "$DATA_LINK" ]; then
-    echo "[setup] EasyEdit/data 是实体目录，保持原样"
-else
-    ln -s "$STEER_DATA_DIR" "$DATA_LINK"
-    echo "[setup] linked $STEER_DATA_DIR -> $DATA_LINK"
-fi
-
-HPARAM_TARGET_DIR="$EASYEDIT_DIR/hparams/Steer/experiment_hparams/steer_eval"
-if [ ! -e "$HPARAM_TARGET_DIR/qwen3-4b" ]; then
-    ln -s "$PROJECT_ROOT/hparams/qwen3-4b" "$HPARAM_TARGET_DIR/qwen3-4b"
-    echo "[setup] linked $PROJECT_ROOT/hparams/qwen3-4b -> $HPARAM_TARGET_DIR/qwen3-4b"
-fi
 
 # ===========================
-# Default Values
+# 默认值
 # ===========================
 device=mps          # mps / cuda:0 / cpu
 dtype=float16       # mps 上 bfloat16 兼容性差，使用 float16
@@ -167,17 +139,25 @@ echo "Best Multip:     $use_best_multip"
 echo "Max New Tokens:  $max_new_tokens"
 echo "Clean:           $clean"
 echo "Experiment:      $exp"
+echo "STEER_DATA_DIR:  ${STEER_DATA_DIR:-<unset, uses ./data>}"
 echo "--------------------------------"
 
-best_multip_path=None
-if [ "$use_best_multip" = true ] ; then
-    if [ "$use_pca" = true ] ; then
-        best_multip_path="../output/generation/$model/${dataset}/${gen_out_path}/pca/best_multipliers.json"
-    else
-        best_multip_path="../output/generation/$model/${dataset}/${gen_out_path}/${method}/best_multipliers.json"
-    fi
-    echo "Using best multipliers from: $best_multip_path"
-    multipliers=0
+# Early warnings for flags we don't support natively but accept for back-compat.
+if [ "$vllm_enable" != "false" ]; then
+    echo "[warn] --vllm_enable=$vllm_enable ignored (vLLM not wired in this local driver)"
+fi
+if [ "$use_pca" != "false" ]; then
+    echo "[warn] --use_pca=$use_pca ignored (PCA pathway not implemented locally)"
+fi
+if [ "$use_best_multip" != "false" ]; then
+    echo "[warn] --use_best_multip not implemented in this driver; using --multipliers as-is"
+fi
+if [ "$evaluate" != "false" ]; then
+    echo "[warn] --evaluate ignored; use 'python shell/score.py' after this finishes"
+fi
+if [ "$method" != "caa" ]; then
+    echo "[error] only --method=caa is supported by this driver (got '$method')"
+    exit 1
 fi
 
 # ===========================
@@ -186,38 +166,29 @@ fi
 model_name_or_path="$PROJECT_ROOT/$model"
 
 # ===========================
-# Hparam 路径（指向项目根 hparams/，已被脚本软链到 EasyEdit 内对应位置）
-# ===========================
-steer_train_hparam_paths="[hparams/Steer/experiment_hparams/steer_eval/$model/${method}/generate_${method}.yaml]"
-apply_steer_hparam_paths="[hparams/Steer/experiment_hparams/steer_eval/$model/${method}/apply_${method}.yaml]"
-
-# ===========================
-# 输出目录（项目根的 output/，不污染 EasyEdit 仓库）
-# 注：相对路径在 `cd $EASYEDIT_DIR` 之后解析为 $PROJECT_ROOT/output/...
+# 输出目录
 # ===========================
 OUTPUT_ROOT="$PROJECT_ROOT/output"
-steer_vector_output_dirs="[../output/vectors/$model/${dataset}/${gen_out_path}]"
-steer_vector_load_dir="[../output/vectors/$model/${dataset}/${gen_out_path}]"
+steer_vector_output_dirs="$OUTPUT_ROOT/vectors/$model/${dataset}/${gen_out_path}"
+steer_vector_load_dir="$OUTPUT_ROOT/vectors/$model/${dataset}/${gen_out_path}"
+generation_output_dir="$OUTPUT_ROOT/generation/$model/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}"
 
-if [ "$use_pca" = true ] ; then
-    generation_output_dir=../output/generation/$model/${dataset}/${gen_out_path}/pca/layer_${layers}_multip_${multipliers}
-else
-    generation_output_dir=../output/generation/$model/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}
-fi
-
-logdir=$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}.log
 mkdir -p "$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}"
+logdir="$OUTPUT_ROOT/logs/${model}/${dataset}/${gen_out_path}/${method}/layer_${layers}_multip_${multipliers}.log"
 
-if [ "$clean" = true ] ; then
-    CLEAN_DIR="$OUTPUT_ROOT/generation/$model/${dataset}/${gen_out_path}"
+# ===========================
+# Optional Clean
+# ===========================
+if [ "$clean" = "true" ]; then
+    CLEAN_DIR="$OUTPUT_ROOT/generation/${model}/${dataset}/${gen_out_path}"
     if [ -d "$CLEAN_DIR" ]; then
         rm -rf "$CLEAN_DIR"
-        echo "[clean] 已清空 $CLEAN_DIR（强制重跑）"
+        echo "[clean] removed $CLEAN_DIR"
     fi
 fi
 
 # ===========================
-# 设备处理
+# 设备处理（CUDA only）
 # ===========================
 ENV_PREFIX=""
 if [[ "$device" == cuda* ]]; then
@@ -225,57 +196,44 @@ if [[ "$device" == cuda* ]]; then
 fi
 
 # ===========================
-# 进入 EasyEdit 目录并执行
+# Run
 # ===========================
-cd "$EASYEDIT_DIR"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT:${PYTHONPATH:-}"
 
-export PYTHONPATH="$EASYEDIT_DIR:${PYTHONPATH:-}"
-
-HPARMS_LINK="examples/hparams"
-HPARMS_BACKUP=""
-if [ ! -e "$HPARMS_LINK" ]; then
-    ln -s "../hparams" "$HPARMS_LINK"
-    HPARMS_TEMP_CREATED=true
+RUNNER="$PROJECT_ROOT/src/run_steer.py"
+if [ ! -f "$RUNNER" ]; then
+    echo "[error] $RUNNER not found"
+    exit 1
 fi
-trap 'if [ "$HPARMS_TEMP_CREATED" = "true" ] && [ -L "'"$HPARMS_LINK"'" ]; then rm "'"$HPARMS_LINK"'"; echo "  清理临时软链: '"$HPARMS_LINK"'"; fi' EXIT
 
-eval "$ENV_PREFIX" python examples/steer_eval.py \
-    model_name_or_path="${model_name_or_path}" \
-    device="${device}" \
-    dtype="${dtype}" \
-    +method="${method}" \
-    +use_pca="${use_pca}" \
-    +dataset="${dataset}" \
-    steer_train_hparam_paths="$steer_train_hparam_paths" \
-    apply_steer_hparam_paths="$apply_steer_hparam_paths" \
-    +generate_vector="${generate_vector}" \
-    steer_vector_output_dirs="$steer_vector_output_dirs" \
-    +generate_response="$generate_response" \
-    steer_vector_load_dir="$steer_vector_load_dir" \
-    generation_output_dir="$generation_output_dir" \
-    generate_orig_output="$generate_orig_output" \
-    +evaluate="$evaluate" \
-    +vllm_enable="$vllm_enable" \
-    +layers=["$layers"] \
-    +multipliers=["$multipliers"] \
-    +best_multip_path="$best_multip_path" \
-    +exp="$exp" \
-    +enable_thinking=false \
-    generation_params.max_new_tokens="$max_new_tokens" \
+# --generate_vector: only pass when true; let the runner default to false when missing.
+$ENV_PREFIX python "$RUNNER" \
+    --model_name_or_path="$model_name_or_path" \
+    --device="$device" \
+    --dtype="$dtype" \
+    --method="$method" \
+    --dataset="$dataset" \
+    --generate_vector="$generate_vector" \
+    --gen_out_path="$gen_out_path" \
+    --generate_response="$generate_response" \
+    --generate_orig_output="$generate_orig_output" \
+    --evaluate="$evaluate" \
+    --layers="$layers" \
+    --multipliers="$multipliers" \
+    --max_new_tokens="$max_new_tokens" \
+    --exp="$exp" \
+    $([ "$clean" = "true" ] && echo "--clean") \
     2>&1 | tee "$logdir"
-
 
 # ===========================
 # example
 # ===========================
-# 1) 使用 MPS 跑 CAA baseline 只生成向量
+# 1) MPS 跑 CAA baseline 只生成向量
 # ./shell/steer_eval.sh --device=mps --method=caa --generate_vector=true --generate_response=false --evaluate=false
 #
-# 2) 生成向量 + 生成回复 + 评测
-# ./shell/steer_eval.sh --device=mps --method=caa --generate_vector=true --generate_response=true --generate_orig_output=true --evaluate=true --layers=20 --multipliers=3
+# 2) 生成向量 + 生成回复
+# ./shell/steer_eval.sh --device=mps --method=caa --generate_vector=true --generate_response=true --generate_orig_output=false --evaluate=false --layers=20 --multipliers=3
 #
 # 3) Linux + CUDA
 # ./shell/steer_eval.sh --device=cuda:0 --gpu=0 --dtype=bfloat16 --method=caa
-#
-# 4) 只跑评测
-# ./shell/steer_eval.sh --device=mps --generate_vector=false --generate_response=false --evaluate=true

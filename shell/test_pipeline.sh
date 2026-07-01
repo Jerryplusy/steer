@@ -1,12 +1,10 @@
 #!/bin/bash
 # ===========================================================================
-# 一键测试脚本：完整 pipeline smoke test
-#
 #
 # 用法：
 #   ./shell/test_pipeline.sh                              # mps + caa, multip=1（smoke）
 #   ./shell/test_pipeline.sh --device=cuda:0              # 改设备
-#   ./shell/test_pipeline.sh --method=reps                # 换方法
+#   ./shell/test_pipeline.sh --method=reps                # 当前仅支持 caa;非 caa 会被拒绝
 #   ./shell/test_pipeline.sh --layers=22 --multipliers=2  # 改超参
 #   SKIP_SCORE=true ./shell/test_pipeline.sh              # 跳过打分
 # ===========================================================================
@@ -24,8 +22,6 @@ done
 # 路径
 # ===========================
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EASYEDIT_DIR="$PROJECT_ROOT/EasyEdit"
-DATA_LINK="$EASYEDIT_DIR/data"
 TEST_DATA_DIR="$PROJECT_ROOT/data_test"
 REAL_DATA_DIR="$PROJECT_ROOT/data"
 GEN_OUT_PATH="test_5samples"
@@ -36,22 +32,6 @@ SUBMISSION_JSON="$PROJECT_ROOT/output/submission/qwen3-4b/SteerEval/personality/
 SCORE_JSON="$PROJECT_ROOT/output/evaluation/qwen3-4b/SteerEval/personality/${GEN_OUT_PATH}_scores.json"
 
 SKIP_SCORE="${SKIP_SCORE:-false}"
-
-# ===========================
-# 工具：无论成功失败都把 EasyEdit/data 恢复回真实数据
-# ===========================
-restore_symlink() {
-    set +e   # trap 内不允许因小错退出
-    if [ -L "$DATA_LINK" ]; then
-        rm -f "$DATA_LINK"
-    elif [ -e "$DATA_LINK" ]; then
-        echo "  EasyEdit/data 是实体目录，不改动"
-        return
-    fi
-    ln -s "$REAL_DATA_DIR" "$DATA_LINK"
-    echo "  恢复: $DATA_LINK -> $REAL_DATA_DIR"
-}
-trap restore_symlink EXIT
 
 # ===========================
 # 1. 准备测试数据
@@ -153,9 +133,8 @@ print(f'  Mean HM: {s.get(\"mean_hm\", 0):.4f}')
     fi
 fi
 
-echo ""
-echo "===== 软链恢复中 ====="
-echo ""
+# Real data dir for reference (no symlink dance anymore).
+
 echo "✅ 测试 pipeline 跑通"
 echo "   vector:  output/vectors/qwen3-4b/SteerEval/personality/${GEN_OUT_PATH}/"
 echo "   result:  $SUBMISSION_JSON"

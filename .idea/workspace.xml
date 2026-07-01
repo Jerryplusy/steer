@@ -4,13 +4,24 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b821ccd9-d6c6-44be-bc28-44bf8e67e15d" name="更改" comment="fix: 细节修复">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/steer.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/steer.iml" afterDir="false" />
+    <list default="true" id="b821ccd9-d6c6-44be-bc28-44bf8e67e15d" name="更改" comment="perf: 细节优化">
+      <change afterPath="$PROJECT_DIR$/src/caa/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/caa/apply.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/caa/generate.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/caa/hparams.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/data/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/data/caa_tokens.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/model/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/model/intervention.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/model/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/model/wrapper.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/run_steer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/util/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/util/seed.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/util/templates.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/config/scorer.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/config/scorer.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shell/convert.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/convert.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shell/score.py" beforeDir="false" afterPath="$PROJECT_DIR$/shell/score.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shell/steer_eval.sh" beforeDir="false" afterPath="$PROJECT_DIR$/shell/steer_eval.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shell/test_pipeline.sh" beforeDir="false" afterPath="$PROJECT_DIR$/shell/test_pipeline.sh" afterDir="false" />
     </list>
@@ -20,7 +31,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="38" />
+    <option name="cachedIndexableFilesCount" value="1765" />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -40,60 +51,60 @@
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
       <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0" />
-      <entry key="M2" value="1.0" />
-      <entry key="M5" value="1.0" />
-      <entry key="M10" value="1.0" />
-      <entry key="M15" value="1.0" />
-      <entry key="M30" value="1.0000000001479918" />
-      <entry key="H1" value="1.0000684766324985" />
-      <entry key="H2" value="1.0578593478018539" />
-      <entry key="H4" value="2.924862124745639" />
-      <entry key="D1" value="43.45853931304833" />
-      <entry key="W1" value="76.98749864506206" />
+      <entry key="MS500" value="1.000000073280267" />
+      <entry key="S2" value="1.0164530630014492" />
+      <entry key="S5" value="1.1934188087937434" />
+      <entry key="S10" value="1.4397940527039257" />
+      <entry key="S30" value="1.7604937935782383" />
+      <entry key="S60" value="1.887581197296643" />
+      <entry key="M2" value="2.3470203147558863" />
+      <entry key="M5" value="4.932750172293698" />
+      <entry key="M10" value="7.69223463899094" />
+      <entry key="M15" value="9.092890424144443" />
+      <entry key="M30" value="10.904801547438915" />
+      <entry key="H1" value="12.683096666406113" />
+      <entry key="H2" value="15.272515318622247" />
+      <entry key="H4" value="18.093619918595472" />
+      <entry key="D1" value="42.23831618138418" />
+      <entry key="W1" value="93.21158804233642" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="5.0335232191959134E-6" />
-      <entry key="MS500" value="0.08717147914690035" />
-      <entry key="S2" value="0.543367431263029" />
-      <entry key="S5" value="0.7834971869493407" />
-      <entry key="S10" value="0.8851537645795451" />
-      <entry key="S30" value="0.9601510774167628" />
-      <entry key="S60" value="0.9798729904517028" />
-      <entry key="M2" value="0.9898853420733649" />
-      <entry key="M5" value="0.995941793407374" />
-      <entry key="M10" value="0.9979688338857953" />
-      <entry key="M15" value="0.99864543043891" />
-      <entry key="M30" value="0.9993224857233728" />
-      <entry key="H1" value="0.9996682227167268" />
-      <entry key="H2" value="1.0044179807080025" />
-      <entry key="H4" value="1.1171815421216287" />
-      <entry key="D1" value="2.7475766466993123" />
-      <entry key="W1" value="3.7771186649253297" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="6.418705228119516E-207" />
+      <entry key="M5" value="3.334102695682419E-83" />
+      <entry key="M10" value="5.774168942651584E-42" />
+      <entry key="M15" value="3.2185470447648677E-28" />
+      <entry key="M30" value="1.7952599173981655E-14" />
+      <entry key="H1" value="1.3744771524001875E-7" />
+      <entry key="H2" value="4.25465500760261E-4" />
+      <entry key="H4" value="0.027728097496335587" />
+      <entry key="D1" value="1.7379932407101746" />
+      <entry key="W1" value="4.273922800448096" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.8760695501230876E-4" />
-      <entry key="MS500" value="0.1901368247393125" />
-      <entry key="S2" value="0.9704255345833617" />
-      <entry key="S5" value="1.4757013847456506" />
-      <entry key="S10" value="1.713634509914996" />
-      <entry key="S30" value="1.898517867524378" />
-      <entry key="S60" value="1.948461017421984" />
-      <entry key="M2" value="1.9740275175050248" />
-      <entry key="M5" value="1.9895618320721546" />
-      <entry key="M10" value="1.9947726818112193" />
-      <entry key="M15" value="1.9965132885236827" />
-      <entry key="M30" value="1.9982557273695474" />
-      <entry key="H1" value="1.9992031471228036" />
-      <entry key="H2" value="2.062010174840613" />
-      <entry key="H4" value="4.041905481737227" />
-      <entry key="D1" value="46.20607453831463" />
-      <entry key="W1" value="80.76460887150752" />
+      <entry key="MS100" value="0.9201876506248751" />
+      <entry key="MS500" value="0.9835021395230635" />
+      <entry key="S2" value="1.0118473609136525" />
+      <entry key="S5" value="1.1895968903087955" />
+      <entry key="S10" value="1.4365003204099145" />
+      <entry key="S30" value="1.7587946776720134" />
+      <entry key="S60" value="1.8866250373123163" />
+      <entry key="M2" value="2.3464889549453347" />
+      <entry key="M5" value="4.932468182652024" />
+      <entry key="M10" value="7.692058932089024" />
+      <entry key="M15" value="9.09276167186426" />
+      <entry key="M30" value="10.904729868549646" />
+      <entry key="H1" value="12.683058217955226" />
+      <entry key="H2" value="15.272919991082293" />
+      <entry key="H4" value="18.121335227941177" />
+      <entry key="D1" value="43.976286072328236" />
+      <entry key="W1" value="97.48550229591211" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -105,30 +116,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.download-data.executor": "Run",
-    "Python.download.executor": "Run",
-    "Python.run.executor": "Run",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "SHELLCHECK.PATH": "/Users/jerry/Library/Application Support/JetBrains/PyCharm2026.1/plugins/Shell Script/shellcheck",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "/Users/jerry/dev/steer/shell",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.download-data.executor&quot;: &quot;Run&quot;,
+    &quot;Python.download.executor&quot;: &quot;Run&quot;,
+    &quot;Python.run.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHELLCHECK.PATH&quot;: &quot;/Users/jerry/Library/Application Support/JetBrains/PyCharm2026.1/plugins/Shell Script/shellcheck&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/jerry/dev/steer/shell&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/shell" />
@@ -223,7 +234,87 @@
       <option name="project" value="LOCAL" />
       <updated>1782190864667</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782193290670</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1782193290670</updated>
+    </task>
+    <task id="LOCAL-00011" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782209309136</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1782209309136</updated>
+    </task>
+    <task id="LOCAL-00012" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782211406854</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1782211406854</updated>
+    </task>
+    <task id="LOCAL-00013" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782275748381</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1782275748381</updated>
+    </task>
+    <task id="LOCAL-00014" summary="perf: 调整打分区间">
+      <option name="closed" value="true" />
+      <created>1782277889081</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1782277889081</updated>
+    </task>
+    <task id="LOCAL-00015" summary="docs: 更新文档">
+      <option name="closed" value="true" />
+      <created>1782278588470</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1782278588470</updated>
+    </task>
+    <task id="LOCAL-00016" summary="fix: 细节修复">
+      <option name="closed" value="true" />
+      <created>1782280649305</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1782280649305</updated>
+    </task>
+    <task id="LOCAL-00017" summary="perf: 增加超时保护">
+      <option name="closed" value="true" />
+      <created>1782291265275</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1782291265275</updated>
+    </task>
+    <task id="LOCAL-00018" summary="perf: 限制最大token">
+      <option name="closed" value="true" />
+      <created>1782474002425</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1782474002425</updated>
+    </task>
+    <task id="LOCAL-00019" summary="perf: 细节优化">
+      <option name="closed" value="true" />
+      <created>1782881188353</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1782881188353</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -236,8 +327,13 @@
     <MESSAGE value="feat: 更新测试数据" />
     <MESSAGE value="feat: 更新转换 预备 打分脚本" />
     <MESSAGE value="feat: 更新查找循环脚本" />
+    <MESSAGE value="perf: 调整打分区间" />
+    <MESSAGE value="docs: 更新文档" />
     <MESSAGE value="fix: 细节修复" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix: 细节修复" />
+    <MESSAGE value="perf: 增加超时保护" />
+    <MESSAGE value="perf: 限制最大token" />
+    <MESSAGE value="perf: 细节优化" />
+    <option name="LAST_COMMIT_MESSAGE" value="perf: 细节优化" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/steer$run.coverage" NAME="run 覆盖结果" MODIFIED="1779356961222" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
