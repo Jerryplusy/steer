@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
@@ -158,6 +159,50 @@ def parse_score(text: str) -> int:
     return 0
 
 
+_CLIENT_LOCK = threading.Lock()
+_OPENAI_CLIENTS: Dict[tuple, Any] = {}
+_OPENAI_UNAVAILABLE = False
+_REQUESTS_SESSION: Any = None
+
+
+def _get_openai_client(api_base: str, api_key: str):
+    """返回缓存的 OpenAI client（线程安全，内部 httpx 连接池可复用）。
+
+    若 openai SDK 不可用，返回 None（调用方回退到 requests.Session）。
+    """
+    global _OPENAI_UNAVAILABLE
+    if _OPENAI_UNAVAILABLE:
+        return None
+    key = (api_base, api_key)
+    client = _OPENAI_CLIENTS.get(key)
+    if client is not None:
+        return client
+    with _CLIENT_LOCK:
+        client = _OPENAI_CLIENTS.get(key)
+        if client is not None:
+            return client
+        try:
+            from openai import OpenAI  # type: ignore
+        except ImportError:
+            _OPENAI_UNAVAILABLE = True
+            return None
+        client = OpenAI(base_url=api_base, api_key=api_key, timeout=SCORER_TIMEOUT)
+        _OPENAI_CLIENTS[key] = client
+        return client
+
+
+def _get_requests_session():
+    """返回缓存的 requests.Session（连接池复用）。"""
+    global _REQUESTS_SESSION
+    if _REQUESTS_SESSION is not None:
+        return _REQUESTS_SESSION
+    with _CLIENT_LOCK:
+        if _REQUESTS_SESSION is None:
+            import requests  # type: ignore
+            _REQUESTS_SESSION = requests.Session()
+    return _REQUESTS_SESSION
+
+
 def call_scorer(
     prompt: str,
     api_base: str = SCORER_API_BASE,
@@ -165,15 +210,12 @@ def call_scorer(
     model: str = SCORER_MODEL,
 ) -> str:
     """调用大模型裁判（OpenAI 兼容 chat/completions）。
-
-    支持 SDK 存在时走 openai / openai 兼容包；否则用 requests。
     """
     last_err: Optional[Exception] = None
     for attempt in range(1, SCORER_MAX_RETRIES + 1):
         try:
-            try:
-                from openai import OpenAI  # type: ignore
-                client = OpenAI(base_url=api_base, api_key=api_key, timeout=SCORER_TIMEOUT)
+            client = _get_openai_client(api_base, api_key)
+            if client is not None:
                 resp = client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
@@ -181,21 +223,21 @@ def call_scorer(
                     max_tokens=SCORER_MAX_TOKENS,
                 )
                 return (resp.choices[0].message.content or "").strip()
-            except ImportError:
-                import requests  # type: ignore
-                r = requests.post(
-                    f"{api_base.rstrip('/')}/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": model,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": SCORER_TEMPERATURE,
-                        "max_tokens": SCORER_MAX_TOKENS,
-                    },
-                    timeout=SCORER_TIMEOUT,
-                )
-                r.raise_for_status()
-                return r.json()["choices"][0]["message"]["content"].strip()
+
+            session = _get_requests_session()
+            r = session.post(
+                f"{api_base.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": SCORER_TEMPERATURE,
+                    "max_tokens": SCORER_MAX_TOKENS,
+                },
+                timeout=SCORER_TIMEOUT,
+            )
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:  # noqa: BLE001
             last_err = e
             if attempt < SCORER_MAX_RETRIES:
@@ -281,6 +323,11 @@ def aggregate(per_concept: List[Dict[str, Any]]) -> Dict[str, float]:
 # CLI
 # ===========================================================================
 def main() -> int:
+    # 行缓冲：即使 stdout 被重定向到文件/管道，进度也能实时刷出
+    try:
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        pass
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", "-i", required=True, help="convert.py 的输出")
     parser.add_argument("--output", "-o", default=None, help="带分数的结果 json 路径")

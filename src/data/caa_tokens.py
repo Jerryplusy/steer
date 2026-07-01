@@ -1,10 +1,10 @@
 """Tokenization helpers for CAA's positive/negative example pairs.
 
 Forked from ``EasyEdit/steer/datasets/caa_data.py``. The vector_prompt pathway and
-MMLU helpers are dropped — we only need ``get_tokens_for_caa``. The ``enable_thinking``
-kwarg is propagated to every ``build_model_input`` call so Qwen chat templates skip
-the thinking block (fix; the upstream patch only covered the question, not the
-chosen/rejected branches).
+MMLU helpers are dropped — we only need ``get_tokens_for_caa``. The chat prompt is
+built once and the raw answer text is appended after the assistant header (exactly as
+upstream); ``enable_thinking`` is propagated to that single ``build_model_input`` call
+so Qwen chat templates skip the thinking block.
 """
 from __future__ import annotations
 
@@ -76,19 +76,11 @@ def get_tokens_for_caa(dataset, tokenizer, hparams):
             ques, tokenizer, hparams.system_prompt, hparams.use_chat_template,
             enable_thinking=enable_thinking,
         )
-        chosen_str = build_model_input(
-            ques + chosen, tokenizer, hparams.system_prompt, hparams.use_chat_template,
-            enable_thinking=enable_thinking,
-        )
-        rejected_str = build_model_input(
-            ques + rejected, tokenizer, hparams.system_prompt, hparams.use_chat_template,
-            enable_thinking=enable_thinking,
-        )
         add_special_tokens = False if hparams.use_chat_template else True
 
         ques_tokens = tokenizer.encode(ques_str, return_tensors="pt", add_special_tokens=add_special_tokens)
-        pos_tokens = tokenizer.encode(chosen_str, return_tensors="pt", add_special_tokens=add_special_tokens)
-        neg_tokens = tokenizer.encode(rejected_str, return_tensors="pt", add_special_tokens=add_special_tokens)
+        pos_tokens = tokenizer.encode(ques_str + chosen, return_tensors="pt", add_special_tokens=add_special_tokens)
+        neg_tokens = tokenizer.encode(ques_str + rejected, return_tensors="pt", add_special_tokens=add_special_tokens)
 
         pos_answer_len = pos_tokens.shape[1] - ques_tokens.shape[1]
         neg_answer_len = neg_tokens.shape[1] - ques_tokens.shape[1]
