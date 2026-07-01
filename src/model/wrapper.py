@@ -337,6 +337,18 @@ class BaseModelWrapper:
     def get_logits(self, tokens) -> t.Tensor:
         return self.model(tokens).logits
 
+    def eval(self) -> "BaseModelWrapper":
+        self.model.eval()
+        return self
+
+    def train(self, mode: bool = True) -> "BaseModelWrapper":
+        self.model.train(mode)
+        return self
+
+    def to(self, *args, **kwargs):
+        self.model = self.model.to(*args, **kwargs)
+        return self
+
     def ori_generate(self, input_ids, **kwargs):
         """Generate without any steering hook active.
 

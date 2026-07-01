@@ -95,7 +95,9 @@ def _empty_cache() -> None:
 
 def generate_one(model, item: dict, generation_params: dict, use_chat_template: bool):
     """Run the model on a single ``item`` and return the steered ``pred`` string."""
-    question = item.get("input", "")
+    question = item.get("question") or item.get("input") or ""
+    if not question.strip():
+        raise ValueError(f"empty prompt for item keys={sorted(item.keys())}")
     prompt = build_model_input(
         question, model.tokenizer,
         system_prompt="", use_chat_template=use_chat_template,
