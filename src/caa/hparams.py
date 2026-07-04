@@ -32,6 +32,10 @@ class CAAHyperParams(HyperParams):
     multiple_choice: bool = False
     steer_vector_output_dir: str = "../"
     save_vectors: bool = True
+    # ---- Vector-extraction options (Stage 1) ----
+    agg: str = "mean"  # "mean" | "last" | "diverge"
+    normalize: bool = True  # unit-L2-normalize the saved steering vector
+    diverge_win: int = 8  # window size (in tokens) for the "diverge" mode
 
 
 @dataclass
@@ -42,3 +46,5 @@ class ApplyCAAHyperParams(HyperParams):
     layers: List[int] = field(default_factory=lambda: [26])
     multipliers: List[float] = field(default_factory=lambda: [2.5])
     steer_vector_load_dir: Optional[str] = None
+    # ---- Position-aware application (Stage 3) ----
+    from_pos: Optional[int] = None  # if set, only steer positions >= from_pos

@@ -315,6 +315,15 @@ class BaseModelWrapper:
         for layer in self._decoder_layers():
             layer.save_activations = value
 
+    def set_from_position(self, pos) -> None:
+        """Restrict activation-addition to positions ``>= pos`` (None = all positions).
+
+        Used by ``apply_caa`` to skip the prompt region when ``hparams.from_pos`` is set,
+        so high multipliers don't corrupt the prompt encoding.
+        """
+        for layer in self._decoder_layers():
+            layer.from_position = pos
+
     def reset_all(self) -> None:
         for layer in self._decoder_layers():
             layer.reset(method_name="all")

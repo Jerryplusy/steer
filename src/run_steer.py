@@ -46,17 +46,21 @@ def vector_concept_dir(model: str, dataset: str, run: str, cid: str) -> Path:
     return vector_dir(model, dataset, run) / f"steer_eval_concept_{cid}"
 
 
-def generation_dir(model: str, dataset: str, run: str, method: str, layer: int, multiplier: float) -> Path:
+def _layers_tag(layers: List[int]) -> str:
+    return "_".join(str(l) for l in layers)
+
+
+def generation_dir(model: str, dataset: str, run: str, method: str, layers: List[int], multiplier: float) -> Path:
     return (
         PROJECT_ROOT / "output" / "generation" / model / dataset / run
-        / method / f"layer_{layer}_multip_{multiplier}"
+        / method / f"layer_{_layers_tag(layers)}_multip_{multiplier}"
     )
 
 
-def logs_dir(model: str, dataset: str, run: str, method: str, layer: int, multiplier: float) -> Path:
+def logs_dir(model: str, dataset: str, run: str, method: str, layers: List[int], multiplier: float) -> Path:
     return (
         PROJECT_ROOT / "output" / "logs" / model / dataset / run
-        / method / f"layer_{layer}_multip_{multiplier}.log"
+        / method / f"layer_{_layers_tag(layers)}_multip_{multiplier}.log"
     )
 
 
@@ -93,8 +97,17 @@ def _empty_cache() -> None:
         torch.cuda.empty_cache()
 
 
-def generate_one(model, item: dict, generation_params: dict, use_chat_template: bool):
-    """Run the model on a single ``item`` and return the steered ``pred`` string."""
+def generate_one(model, item: dict, generation_params: dict, use_chat_template: bool, logits_processor=None, from_pos=None):
+    """Run the model on a single ``item`` and return the steered ``pred`` string.
+
+    If ``logits_processor`` is given (e.g. a :class:`PhraseCountProcessor`), it is
+    passed to ``model.generate`` so per-step hooks can be updated mid-generation.
+
+    ``from_pos``: if ``"prompt_len"``, the activation-addition is restricted to
+    generated tokens only (positions >= prompt length), so the prompt's KV cache
+    is not poisoned by the steering vector. If an int, used directly. None = all
+    positions (legacy CAA behavior).
+    """
     question = item.get("question") or item.get("input") or ""
     if not question.strip():
         raise ValueError(f"empty prompt for item keys={sorted(item.keys())}")
@@ -104,8 +117,18 @@ def generate_one(model, item: dict, generation_params: dict, use_chat_template: 
         enable_thinking=getattr(model.hparams, "enable_thinking", None),
     )
     inputs = model.tokenizer(prompt, return_tensors="pt", add_special_tokens=not use_chat_template).to(model.device)
+    # Restrict steering to generated positions (keeps the prompt KV cache clean).
+    if from_pos == "prompt_len":
+        model.set_from_position(int(inputs["input_ids"].shape[1]))
+    elif isinstance(from_pos, int):
+        model.set_from_position(from_pos)
     with torch.no_grad():
-        output = model.model.generate(**inputs, **generation_params)
+        if logits_processor is not None:
+            from transformers import LogitsProcessorList
+            output = model.model.generate(**inputs, logits_processor=LogitsProcessorList([logits_processor]), **generation_params)
+        else:
+            output = model.model.generate(**inputs, **generation_params)
+    model.set_from_position(None)  # restore default for the next item
     full_output = model.tokenizer.decode(output[0], skip_special_tokens=False)
     new_tokens = output[0][inputs["input_ids"].shape[1]:]
     text = model.tokenizer.decode(new_tokens, skip_special_tokens=True)
@@ -127,8 +150,14 @@ def main() -> int:
     parser.add_argument("--generate_response", default="true")
     parser.add_argument("--generate_orig_output", default="false")
     parser.add_argument("--evaluate", default="false", help="Ignored; shell/score.py is used.")
-    parser.add_argument("--layers", default="20")
-    parser.add_argument("--multipliers", default="3")
+    parser.add_argument("--layers", default="22,26,30",
+                        help="comma-separated layer indices, e.g. 22,26,30")
+    parser.add_argument("--multipliers", default="4")
+    parser.add_argument("--mode", default="caa_diverge",
+                        choices=["caa_mean", "caa_last", "caa_diverge", "token", "token_logit"],
+                        help="caa_* = CAA extraction mode; token = L3 residual injection; token_logit = L3 direct logit bias (clean)")
+    parser.add_argument("--concept_config", default=None,
+                        help="optional JSON {cid: {mode, layers, multiplier}} overriding the globals per concept")
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument("--exp", default="valid")
     parser.add_argument("--clean", action="store_true")
@@ -138,8 +167,14 @@ def main() -> int:
         print(f"[error] only 'caa' is supported in this driver, got {args.method!r}", file=sys.stderr)
         return 1
 
-    layer = int(args.layers)
+    layers = [int(x) for x in args.layers.split(",") if x.strip()]
     multiplier = float(args.multipliers)
+    agg = args.mode.replace("caa_", "") if args.mode.startswith("caa_") else "mean"
+    is_token_mode = args.mode == "token"
+    concept_overrides = {}
+    if args.concept_config:
+        with open(args.concept_config, "r", encoding="utf-8") as f:
+            concept_overrides = json.load(f)
 
     model_short = Path(args.model_name_or_path).name  # e.g. "qwen3-4b"
 
@@ -176,7 +211,7 @@ def main() -> int:
     # ---- Build model once.
     print(f"Loading model {args.model_name_or_path} on {args.device} ({dtype_str})")
     gen_hparams = CAAHyperParams(
-        layers=[layer],
+        layers=layers,
         multiple_choice=False,
         model_name_or_path=args.model_name_or_path,
         device=args.device,
@@ -186,20 +221,23 @@ def main() -> int:
         system_prompt="",
         save_activations=True,
         enable_thinking=enable_thinking,
+        agg=agg,
+        normalize=True,
+        diverge_win=8,
     )
     model, _tokenizer = make_qwen_wrapper(gen_hparams)
     model.hparams = gen_hparams
     model.eval()
 
-    # Path conventions for this (run, layer, multiplier).
+    # Path conventions for this (run, layers, multiplier).
     vec_root = vector_dir(model_short, dataset_name, args.gen_out_path)
-    gen_root = generation_dir(model_short, dataset_name, args.gen_out_path, args.method, layer, multiplier)
+    gen_root = generation_dir(model_short, dataset_name, args.gen_out_path, args.method, layers, multiplier)
     gen_root.mkdir(parents=True, exist_ok=True)
     (PROJECT_ROOT / "output" / "logs" / model_short / dataset_name / args.gen_out_path / args.method).mkdir(parents=True, exist_ok=True)
 
     # Per-concept iteration.
     concept_ids = list(valid_by_concept.keys())
-    print(f"Will process {len(concept_ids)} concepts")
+    print(f"Will process {len(concept_ids)} concepts (mode={args.mode}, layers={layers}, m={multiplier})")
 
     for cid in concept_ids:
         train_concept = train_by_concept.get(cid, [])
@@ -207,35 +245,42 @@ def main() -> int:
             print(f"[skip] no train data for {cid}")
             continue
 
-        # ---- Vector.
-        vec_path = vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid) / "caa_vector" / f"layer_{layer}.pt"
-        if args.generate_vector.lower() == "true":
-            vec_path.parent.mkdir(parents=True, exist_ok=True)
-            print(f"[vec] {cid}: train rows={len(train_concept)} -> {vec_path}")
-            gen_hparams.steer_vector_output_dir = str(vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid))
-            generate_caa_vectors(gen_hparams, model, train_concept, dataset_name=dataset_name + "_concept_" + cid)
+        # ---- Resolve effective config (global vs per-concept override).
+        ov = concept_overrides.get(cid, {})
+        eff_mode = ov.get("mode", args.mode)
+        eff_layers = [int(x) for x in ov.get("layers", layers)]
+        eff_mult = float(ov.get("multiplier", multiplier))
+        eff_agg = eff_mode.replace("caa_", "") if eff_mode.startswith("caa_") else "mean"
+        eff_is_token = eff_mode in ("token", "token_logit")
+        eff_is_logit = eff_mode == "token_logit"
 
-        # ---- Apply.
-        ap_hparams = ApplyCAAHyperParams(
-            layers=[layer],
-            multipliers=[multiplier],
-            model_name_or_path=args.model_name_or_path,
-            device=args.device,
-            dtype=dtype_str,
-            use_cache=True,
-            use_chat_template=True,
-            system_prompt="",
-            enable_thinking=enable_thinking,
-            steer_vector_load_dir=str(vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid) / "caa_vector"),
-        )
-        model = apply_caa(ap_hparams, model)
+        concept_str = train_concept[0].get("concept", "")
+        target = None
+        if eff_is_token:
+            from src.caa.token_steer import extract_target_phrase
+            target = extract_target_phrase(concept_str, model.tokenizer)
+            if target is None:
+                print(f"[fallback] {cid}: no phrase in concept → caa_diverge")
+                eff_mode, eff_agg, eff_is_token = "caa_diverge", "diverge", False
+                eff_is_logit = False
 
-        # ---- Generate response.
+        # ---- CAA: ensure vectors exist for eff_layers.
+        if not eff_is_token and args.generate_vector.lower() == "true":
+            gen_hparams.layers = eff_layers
+            gen_hparams.agg = eff_agg
+            vec_dir = vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid)
+            vec_files = [vec_dir / "caa_vector" / f"layer_{l}.pt" for l in eff_layers]
+            if not all(p.exists() for p in vec_files):
+                vec_dir.mkdir(parents=True, exist_ok=True)
+                (vec_dir / "caa_vector").mkdir(parents=True, exist_ok=True)
+                print(f"[vec] {cid}: train rows={len(train_concept)} agg={eff_agg} layers={eff_layers}")
+                gen_hparams.steer_vector_output_dir = str(vec_dir)
+                generate_caa_vectors(gen_hparams, model, train_concept, dataset_name=dataset_name + "_concept_" + cid)
+
         if args.generate_response.lower() != "true":
             continue
 
         results_path = gen_root / f"tmp_generation_results_{args.exp}.json"
-        # Load partial file if resume.
         existing: List[dict] = []
         if results_path.exists():
             try:
@@ -258,19 +303,45 @@ def main() -> int:
             "do_sample": False,
             "pad_token_id": model.tokenizer.eos_token_id,
         }
-        # We need both steered and possibly orig per item; here we follow the shell
-        # default of --generate_orig_output=false, so only steered.
         concept_result = {
             "concept_id": cid,
-            "concept": train_concept[0].get("concept", ""),
+            "concept_name": concept_str,
+            "concept": concept_str,
             "concept_description": train_concept[0].get("llm_description", "") or train_concept[0].get("concept_description", ""),
             "generated_results": [],
         }
+
         for item in tqdm(valid_concept, desc=f"concept {cid}"):
             try:
-                gen_res = generate_one(model, item, generation_params, use_chat_template=True)
+                model.reset_all()
+                if eff_is_logit:
+                    # Clean L3: direct logit bias via LogitsProcessor. No residual hooks.
+                    from src.caa.token_steer import LogitBiasProcessor
+                    processor = LogitBiasProcessor(target.token_ids, target.count, bias=eff_mult)
+                    gen_res = generate_one(model, item, generation_params, use_chat_template=True, logits_processor=processor)
+                elif eff_is_token:
+                    from src.caa.token_steer import PhraseCountProcessor, apply_token_steer
+                    installed = apply_token_steer(gen_hparams, model, target, eff_layers, eff_mult)
+                    processor = PhraseCountProcessor(target, installed, model, model.tokenizer)
+                    gen_res = generate_one(model, item, generation_params, use_chat_template=True, logits_processor=processor, from_pos="prompt_len")
+                else:
+                    ap_hparams = ApplyCAAHyperParams(
+                        layers=eff_layers,
+                        multipliers=[eff_mult] * len(eff_layers),
+                        model_name_or_path=args.model_name_or_path,
+                        device=args.device,
+                        dtype=dtype_str,
+                        use_cache=True,
+                        use_chat_template=True,
+                        system_prompt="",
+                        enable_thinking=enable_thinking,
+                        steer_vector_load_dir=str(vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid) / "caa_vector"),
+                    )
+                    apply_caa(ap_hparams, model)
+                    gen_res = generate_one(model, item, generation_params, use_chat_template=True)
             except Exception as e:
                 print(f"[err] {cid}: {e}")
+                model.reset_all()
                 continue
             concept_result["generated_results"].append({
                 "input": item.get("question") or item.get("input", ""),
@@ -282,10 +353,9 @@ def main() -> int:
             _empty_cache()  # keep MPS allocator tidy; lost patch preserved here.
 
         existing.append(concept_result)
-        # Persist after each concept for crash resilience.
         with results_path.open("w", encoding="utf-8") as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
-        print(f"[ok] {cid} written to {results_path.name}")
+        print(f"[ok] {cid} ({eff_mode}) written to {results_path.name}")
 
         # Reset CAA hooks so the next concept starts clean.
         model.reset_all()

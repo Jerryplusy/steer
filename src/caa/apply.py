@@ -54,4 +54,8 @@ def apply_caa(
         )
         intervention = intervention.to(hparams.device)
         model.set_intervention(layer, intervention, "caa")
+
+    # Restrict activation-addition to positions >= from_pos (e.g. skip the prompt).
+    from_pos = getattr(hparams, "from_pos", None)
+    model.set_from_position(from_pos)
     return model
