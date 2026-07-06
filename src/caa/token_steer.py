@@ -226,16 +226,21 @@ class LogitBiasProcessor:
     the model continues normally.
     """
 
-    def __init__(self, phrase_ids: List[int], count: int = 1, bias: float = 40.0):
+    def __init__(self, phrase_ids: List[int], count: int = 1, bias: float = 40.0,
+                 anti_repeat: float = 5.0):
         self.phrase_ids = phrase_ids
         self.required = count
         self.bias = bias
+        self.anti_repeat = anti_repeat  # small negative on phrase[0] after done to deter re-mention
         self.ptr = 0
         self.completed = 0
         self.done = False
 
     def __call__(self, input_ids, scores):
         if self.done:
+            # Anti-repeat: gentle negative bias on every phrase sub-token so the
+            # model doesn't keep treating the phrase as a topic after emission.
+            scores[:, self.phrase_ids] -= self.anti_repeat
             return scores
         last_id = int(input_ids[0, -1].item())
         expected = self.phrase_ids[self.ptr]
@@ -246,6 +251,9 @@ class LogitBiasProcessor:
                 self.ptr = 0
                 if self.completed >= self.required:
                     self.done = True
+                    # Start anti-repeat immediately so the very next step won't
+                    # re-emit a phrase sub-token via natural sampling.
+                    scores[:, self.phrase_ids] -= self.anti_repeat
                     return scores
         else:
             self.ptr = 1 if last_id == self.phrase_ids[0] else 0

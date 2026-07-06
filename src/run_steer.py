@@ -231,9 +231,15 @@ def main() -> int:
 
     # Path conventions for this (run, layers, multiplier).
     vec_root = vector_dir(model_short, dataset_name, args.gen_out_path)
-    gen_root = generation_dir(model_short, dataset_name, args.gen_out_path, args.method, layers, multiplier)
+    # When per-concept overrides are in use, suffix the output dir so the
+    # misleading global [layers]_[multip] tag (e.g. layer_22_26_30_multip_4.0)
+    # is not mistaken for what was actually applied.
+    run_tag = args.gen_out_path
+    if concept_overrides:
+        run_tag = args.gen_out_path + "_perconcept"
+    gen_root = generation_dir(model_short, dataset_name, run_tag, args.method, layers, multiplier)
     gen_root.mkdir(parents=True, exist_ok=True)
-    (PROJECT_ROOT / "output" / "logs" / model_short / dataset_name / args.gen_out_path / args.method).mkdir(parents=True, exist_ok=True)
+    (PROJECT_ROOT / "output" / "logs" / model_short / dataset_name / run_tag / args.method).mkdir(parents=True, exist_ok=True)
 
     # Per-concept iteration.
     concept_ids = list(valid_by_concept.keys())
@@ -247,7 +253,7 @@ def main() -> int:
 
         # ---- Resolve effective config (global vs per-concept override).
         ov = concept_overrides.get(cid, {})
-        eff_mode = ov.get("mode", args.mode)
+        eff_mode = ov.get("method", ov.get("mode", args.mode))  # spec uses "method"; accept "mode" alias
         eff_layers = [int(x) for x in ov.get("layers", layers)]
         eff_mult = float(ov.get("multiplier", multiplier))
         eff_agg = eff_mode.replace("caa_", "") if eff_mode.startswith("caa_") else "mean"
@@ -268,12 +274,13 @@ def main() -> int:
         if not eff_is_token and args.generate_vector.lower() == "true":
             gen_hparams.layers = eff_layers
             gen_hparams.agg = eff_agg
+            gen_hparams.normalize = bool(ov.get("normalize", True))  # raw for behavioral, normalized otherwise
             vec_dir = vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid)
             vec_files = [vec_dir / "caa_vector" / f"layer_{l}.pt" for l in eff_layers]
             if not all(p.exists() for p in vec_files):
                 vec_dir.mkdir(parents=True, exist_ok=True)
                 (vec_dir / "caa_vector").mkdir(parents=True, exist_ok=True)
-                print(f"[vec] {cid}: train rows={len(train_concept)} agg={eff_agg} layers={eff_layers}")
+                print(f"[vec] {cid}: train rows={len(train_concept)} agg={eff_agg} normalize={gen_hparams.normalize} layers={eff_layers}")
                 gen_hparams.steer_vector_output_dir = str(vec_dir)
                 generate_caa_vectors(gen_hparams, model, train_concept, dataset_name=dataset_name + "_concept_" + cid)
 
