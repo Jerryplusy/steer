@@ -132,6 +132,14 @@ def generate_one(model, item: dict, generation_params: dict, use_chat_template: 
     full_output = model.tokenizer.decode(output[0], skip_special_tokens=False)
     new_tokens = output[0][inputs["input_ids"].shape[1]:]
     text = model.tokenizer.decode(new_tokens, skip_special_tokens=True)
+    # Explicitly release the KV cache + output tensors before returning — otherwise
+    # Python GC lags and torch.mps.empty_cache() can't reclaim the cache, so memory
+    # fragments and each successive generate() gets slower (very visible at long
+    # max_new_tokens).
+    del output, new_tokens
+    import gc as _gc
+    _gc.collect()
+    _empty_cache()
     return {"complete_output": [full_output], "pred": [text]}
 
 
@@ -366,6 +374,13 @@ def main() -> int:
 
         # Reset CAA hooks so the next concept starts clean.
         model.reset_all()
+        # Aggressive reclaim between concepts: Python GC + MPS cache release.
+        # Without this, the KV cache from the last generate() of the previous
+        # concept stays referenced in the allocator's "used" pool, fragmenting
+        # memory and slowing each successive concept's vector gen + generation.
+        import gc as _gc
+        _gc.collect()
+        _empty_cache()
 
     # Final rename.
     tmp_path = gen_root / f"tmp_generation_results_{args.exp}.json"

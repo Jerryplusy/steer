@@ -157,6 +157,13 @@ def generate_caa_vectors(
 
         # Empty once per row keeps memory pool stable across the 70-row train set.
         _empty_cache()
+        # Periodic full GC every 10 rows — the logits tensor from get_logits()
+        # (~30 MB at vocab=151936) is not assigned and relies on GC; without
+        # this, MPS fragmentation grows and later rows slow down.
+        if len(pos_activations[args.layers[0]]) % 10 == 0:
+            import gc as _gc
+            _gc.collect()
+            _empty_cache()
 
     out_dir = os.path.join(args.steer_vector_output_dir, "caa_vector")
     if args.save_vectors:
