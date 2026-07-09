@@ -332,7 +332,10 @@ def main() -> int:
                 if eff_is_logit:
                     # Clean L3: direct logit bias via LogitsProcessor. No residual hooks.
                     from src.caa.token_steer import LogitBiasProcessor
-                    processor = LogitBiasProcessor(target.token_ids, target.count, bias=eff_mult)
+                    processor = LogitBiasProcessor(
+                        target.token_ids, target.count, bias=eff_mult,
+                        tokenizer=model.tokenizer, phrase_str=target.phrase,
+                    )
                     gen_res = generate_one(model, item, generation_params, use_chat_template=True, logits_processor=processor)
                 elif eff_is_token:
                     from src.caa.token_steer import PhraseCountProcessor, apply_token_steer

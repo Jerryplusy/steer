@@ -210,6 +210,27 @@ class PhraseCountProcessor:
 # --------------------------------------------------------------------------- #
 # LogitsProcessor: direct logit bias (the clean L3 method)
 # --------------------------------------------------------------------------- #
+# Cached suppress-family token sets, keyed by (id(tokenizer), frozenset(chars)).
+# Built once per phrase char-set; shared across all items of a concept.
+_SUPPRESS_FAM_CACHE: dict = {}
+
+
+def build_suppress_ids(tokenizer, phrase_ids: List[int], phrase_str: Optional[str]) -> List[int]:
+    """Token ids to penalize after the phrase requirement is met.
+    """
+    exact = list(phrase_ids)
+    if not phrase_str or any(c.isalnum() for c in phrase_str):
+        return exact
+    chars = frozenset(phrase_str)
+    key = (id(tokenizer), chars)
+    fam = _SUPPRESS_FAM_CACHE.get(key)
+    if fam is None:
+        toks = tokenizer.convert_ids_to_tokens(list(range(tokenizer.vocab_size)))
+        fam = [i for i, s in enumerate(toks) if any(c in s for c in chars)]
+        _SUPPRESS_FAM_CACHE[key] = fam
+    return list(set(fam) | set(exact))
+
+
 class LogitBiasProcessor:
     """Force the model to emit a target phrase by directly adding ``bias`` to the
     logit of the next expected phrase sub-token at each generation step.
@@ -227,21 +248,47 @@ class LogitBiasProcessor:
     """
 
     def __init__(self, phrase_ids: List[int], count: int = 1, bias: float = 40.0,
-                 anti_repeat: float = 5.0):
+                 anti_repeat: float = 5.0, tokenizer=None, phrase_str: Optional[str] = None,
+                 sep_token_str: str = ", "):
         self.phrase_ids = phrase_ids
         self.required = count
         self.bias = bias
-        self.anti_repeat = anti_repeat  # small negative on phrase[0] after done to deter re-mention
+        self.anti_repeat = anti_repeat  # negative applied to suppress_ids once done
         self.ptr = 0
         self.completed = 0
         self.done = False
 
+        # Post-done suppression set: broadened to the symbol family for symbol phrases.
+        self.suppress_ids = (
+            build_suppress_ids(tokenizer, phrase_ids, phrase_str)
+            if tokenizer is not None else list(phrase_ids)
+        )
+
+        # Inter-occurrence separator tokens, forced between occurrences for count>1.
+        self.sep_ids = (
+            tokenizer.encode(sep_token_str, add_special_tokens=False)
+            if count > 1 and tokenizer is not None and sep_token_str else []
+        )
+        self.sep_ptr = 0
+        self.in_sep = False
+
     def __call__(self, input_ids, scores):
         if self.done:
-            # Anti-repeat: gentle negative bias on every phrase sub-token so the
-            # model doesn't keep treating the phrase as a topic after emission.
-            scores[:, self.phrase_ids] -= self.anti_repeat
+            # Anti-repeat: penalize the (possibly broadened) suppress set so the
+            # model doesn't keep emitting phrase-family tokens after completion.
+            scores[:, self.suppress_ids] -= self.anti_repeat
             return scores
+
+        # Drive the inter-occurrence separator to completion before resuming the phrase.
+        if self.in_sep:
+            sep_id = self.sep_ids[self.sep_ptr]
+            self.sep_ptr += 1
+            if self.sep_ptr >= len(self.sep_ids):
+                self.in_sep = False
+                self.sep_ptr = 0
+            scores[:, sep_id] += self.bias
+            return scores
+
         last_id = int(input_ids[0, -1].item())
         expected = self.phrase_ids[self.ptr]
         if last_id == expected:
@@ -251,11 +298,15 @@ class LogitBiasProcessor:
                 self.ptr = 0
                 if self.completed >= self.required:
                     self.done = True
-                    # Start anti-repeat immediately so the very next step won't
-                    # re-emit a phrase sub-token via natural sampling.
-                    scores[:, self.phrase_ids] -= self.anti_repeat
+                    scores[:, self.suppress_ids] -= self.anti_repeat
+                    return scores
+                if self.sep_ids:
+                    self.in_sep = True
+                    self.sep_ptr = 1
+                    scores[:, self.sep_ids[0]] += self.bias
                     return scores
         else:
+            # Mismatch: reset; if the emitted token happens to be phrase[0], start.
             self.ptr = 1 if last_id == self.phrase_ids[0] else 0
         # Bias the next expected phrase token. +bias on its logit dominates the argmax.
         scores[:, self.phrase_ids[self.ptr]] += self.bias
