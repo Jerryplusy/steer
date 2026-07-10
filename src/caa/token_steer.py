@@ -219,16 +219,26 @@ def build_suppress_ids(tokenizer, phrase_ids: List[int], phrase_str: Optional[st
     """Token ids to penalize after the phrase requirement is met.
     """
     exact = list(phrase_ids)
-    if not phrase_str or any(c.isalnum() for c in phrase_str):
+    if not phrase_str:
         return exact
-    chars = frozenset(phrase_str)
-    key = (id(tokenizer), chars)
-    fam = _SUPPRESS_FAM_CACHE.get(key)
-    if fam is None:
-        toks = tokenizer.convert_ids_to_tokens(list(range(tokenizer.vocab_size)))
-        fam = [i for i, s in enumerate(toks) if any(c in s for c in chars)]
-        _SUPPRESS_FAM_CACHE[key] = fam
-    return list(set(fam) | set(exact))
+    # Symbol phrase: broaden to all tokens containing any phrase character.
+    if not any(c.isalnum() for c in phrase_str):
+        chars = frozenset(phrase_str)
+        key = (id(tokenizer), chars)
+        fam = _SUPPRESS_FAM_CACHE.get(key)
+        if fam is None:
+            toks = tokenizer.convert_ids_to_tokens(list(range(tokenizer.vocab_size)))
+            fam = [i for i, s in enumerate(toks) if any(c in s for c in chars)]
+            _SUPPRESS_FAM_CACHE[key] = fam
+        return list(set(fam) | set(exact))
+    # Word phrase: include leading-space / capitalized re-tokenizations so the
+    # soft penalty also catches variant tokens (' just' 1101 vs 'just' 4250).
+    ids = set(exact)
+    cap = phrase_str[0].upper() + phrase_str[1:]
+    for v in (phrase_str, " " + phrase_str, cap, " " + cap):
+        ids.update(tokenizer.encode(v, add_special_tokens=False))
+    return list(ids)
+
 
 
 class LogitBiasProcessor:
@@ -264,6 +274,15 @@ class LogitBiasProcessor:
             if tokenizer is not None else list(phrase_ids)
         )
 
+        # Post-done anti-degeneracy: ban any n-gram of this size from repeating
+        # once the phrase requirement is met. Forcing the phrase twice at the
+        # start creates an unnatural repetitive context that can throw the model
+        # into a loop ("100% sure, 100% sure, ..." or a 3rd phrase copy); a hard
+        # n-gram ban breaks ANY such loop, not just the phrase, so it can't be
+        # defeated by the model latching onto a different token. Applied only in
+        # the done branch so it never blocks the 2nd forced occurrence.
+        self.no_repeat_ngram_size = 4
+
         # Inter-occurrence separator tokens, forced between occurrences for count>1.
         self.sep_ids = (
             tokenizer.encode(sep_token_str, add_special_tokens=False)
@@ -272,11 +291,28 @@ class LogitBiasProcessor:
         self.sep_ptr = 0
         self.in_sep = False
 
+    def _ban_repeated_ngrams(self, input_ids, scores, n: int):
+        """Hard-ban the next token if it would complete an n-gram already seen."""
+        if n <= 1:
+            return
+        ids = input_ids[0].tolist()
+        if len(ids) < n:
+            return
+        prefix = tuple(ids[-(n - 1):])
+        banned = [ids[i + n - 1] for i in range(len(ids) - n + 1)
+                  if tuple(ids[i:i + n - 1]) == prefix]
+        if banned:
+            scores[:, banned] = float("-inf")
+
     def __call__(self, input_ids, scores):
         if self.done:
             # Anti-repeat: penalize the (possibly broadened) suppress set so the
             # model doesn't keep emitting phrase-family tokens after completion.
             scores[:, self.suppress_ids] -= self.anti_repeat
+            # Hard-ban any repeating n-gram to break degenerate loops (the forced
+            # double-phrase can throw the model into "X, X, X, ..." repetition;
+            # blocking only the phrase just shifts it to another token).
+            self._ban_repeated_ngrams(input_ids, scores, self.no_repeat_ngram_size)
             return scores
 
         # Drive the inter-occurrence separator to completion before resuming the phrase.
@@ -299,6 +335,7 @@ class LogitBiasProcessor:
                 if self.completed >= self.required:
                     self.done = True
                     scores[:, self.suppress_ids] -= self.anti_repeat
+                    self._ban_repeated_ngrams(input_ids, scores, self.no_repeat_ngram_size)
                     return scores
                 if self.sep_ids:
                     self.in_sep = True

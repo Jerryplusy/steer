@@ -267,6 +267,11 @@ def main() -> int:
         eff_agg = eff_mode.replace("caa_", "") if eff_mode.startswith("caa_") else "mean"
         eff_is_token = eff_mode in ("token", "token_logit")
         eff_is_logit = eff_mode == "token_logit"
+        # Anti-repetition n-gram ban for CAA generation (kills emoji/keyword/list
+        # loops that appear at both low and high m). 0 disables. Not applied to
+        # token_logit: its done-branch n-gram ban handles post-phrase loops, and a
+        # global ban here would block the 2nd forced occurrence.
+        eff_ngram = int(ov.get("no_repeat_ngram", 6))
 
         concept_str = train_concept[0].get("concept", "")
         target = None
@@ -356,7 +361,11 @@ def main() -> int:
                         steer_vector_load_dir=str(vector_concept_dir(model_short, dataset_name, args.gen_out_path, cid) / "caa_vector"),
                     )
                     apply_caa(ap_hparams, model)
-                    gen_res = generate_one(model, item, generation_params, use_chat_template=True)
+                    proc = None
+                    if eff_ngram and eff_ngram > 1:
+                        from transformers import NoRepeatNGramLogitsProcessor
+                        proc = NoRepeatNGramLogitsProcessor(ngram_size=eff_ngram)
+                    gen_res = generate_one(model, item, generation_params, use_chat_template=True, logits_processor=proc)
             except Exception as e:
                 print(f"[err] {cid}: {e}")
                 model.reset_all()
