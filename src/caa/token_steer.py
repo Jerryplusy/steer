@@ -259,7 +259,7 @@ class LogitBiasProcessor:
 
     def __init__(self, phrase_ids: List[int], count: int = 1, bias: float = 40.0,
                  anti_repeat: float = 5.0, tokenizer=None, phrase_str: Optional[str] = None,
-                 sep_token_str: str = ", "):
+                 sep_token_str: str = ", ", delay_tokens: int = 0):
         self.phrase_ids = phrase_ids
         self.required = count
         self.bias = bias
@@ -291,6 +291,19 @@ class LogitBiasProcessor:
         self.sep_ptr = 0
         self.in_sep = False
 
+        # Optional pre-phrase delay: let the model emit a natural preamble of
+        # ``delay_tokens`` tokens before forcing the phrase, so the phrase is
+        # embedded mid-response instead of at the very start (opener-phrases like
+        # "variance is the point" / "self-authored" read as broken sentence
+        # starts and make the model ramble/distort when forced at step 0).
+        # After the delay a single leading space is forced so the phrase doesn't
+        # glue onto the preamble's last word.
+        self.delay_tokens = int(delay_tokens)
+        self.delay_step = 0
+        self.space_id = (tokenizer.encode(" ", add_special_tokens=False)[0]
+                          if tokenizer is not None else 220)
+        self.need_lead_space = self.delay_tokens > 0
+
     def _ban_repeated_ngrams(self, input_ids, scores, n: int):
         """Hard-ban the next token if it would complete an n-gram already seen."""
         if n <= 1:
@@ -313,6 +326,16 @@ class LogitBiasProcessor:
             # double-phrase can throw the model into "X, X, X, ..." repetition;
             # blocking only the phrase just shifts it to another token).
             self._ban_repeated_ngrams(input_ids, scores, self.no_repeat_ngram_size)
+            return scores
+
+        # Pre-phrase delay: generate naturally for delay_tokens steps, then fall
+        # through to force a leading space + the phrase (embeds mid-response).
+        if self.delay_step < self.delay_tokens:
+            self.delay_step += 1
+            return scores
+        if self.need_lead_space:
+            self.need_lead_space = False
+            scores[:, self.space_id] += self.bias
             return scores
 
         # Drive the inter-occurrence separator to completion before resuming the phrase.

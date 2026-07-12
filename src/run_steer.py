@@ -150,7 +150,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Local CAA driver for Qwen3.")
     parser.add_argument("--model_name_or_path", default=str(PROJECT_ROOT / "qwen3-4b"))
     parser.add_argument("--device", default="mps")
-    parser.add_argument("--dtype", default="float16")
+    parser.add_argument("--dtype", default="bfloat16")
     parser.add_argument("--method", default="caa")
     parser.add_argument("--dataset", default="SteerEval/personality")
     parser.add_argument("--generate_vector", default="true")
@@ -169,6 +169,12 @@ def main() -> int:
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument("--exp", default="valid")
     parser.add_argument("--clean", action="store_true")
+    parser.add_argument("--only", default=None,
+                        help="comma-separated concept ids to run, e.g. L1_1 (others skipped). "
+                             "Implies --merge: loads existing final, replaces only these concepts, writes back.")
+    parser.add_argument("--merge", action="store_true",
+                        help="merge results into existing all_generation_results_<exp>.json "
+                             "(update run concepts in place) instead of starting fresh.")
     args = parser.parse_args()
 
     if args.method != "caa":
@@ -251,7 +257,25 @@ def main() -> int:
 
     # Per-concept iteration.
     concept_ids = list(valid_by_concept.keys())
-    print(f"Will process {len(concept_ids)} concepts (mode={args.mode}, layers={layers}, m={multiplier})")
+    # --only: filter to a subset of concepts (for fast single-concept iteration).
+    only_ids = {x.strip() for x in args.only.split(",") if x.strip()} if args.only else None
+    if only_ids:
+        concept_ids = [c for c in concept_ids if c in only_ids]
+    merge_mode = bool(only_ids) or args.merge
+    print(f"Will process {len(concept_ids)} concepts (mode={args.mode}, layers={layers}, m={multiplier}"
+          f"{f', only={sorted(only_ids)}' if only_ids else ''}, merge={merge_mode})")
+
+    # Merge mode: load existing final as base, drop the concepts we're re-running,
+    # and write back to final (keeps the other concepts' results unchanged).
+    final_path = gen_root / f"all_generation_results_{args.exp}.json"
+    tmp_path = gen_root / f"tmp_generation_results_{args.exp}.json"
+    if merge_mode:
+        existing: List[dict] = load_json(final_path) if final_path.exists() else []
+        existing = [c for c in existing if c.get("concept_id") not in set(concept_ids)]
+        done_concepts = {c.get("concept_id") for c in existing}
+    else:
+        existing = []
+        done_concepts = set()
 
     for cid in concept_ids:
         train_concept = train_by_concept.get(cid, [])
@@ -272,6 +296,10 @@ def main() -> int:
         # token_logit: its done-branch n-gram ban handles post-phrase loops, and a
         # global ban here would block the 2nd forced occurrence.
         eff_ngram = int(ov.get("no_repeat_ngram", 6))
+        # L3 phrase-insertion delay (token_logit only): let the model emit a
+        # natural preamble before forcing the phrase, so opener-awkward phrases
+        # ("variance is the point") embed mid-response instead of at the start.
+        eff_delay = int(ov.get("delay_tokens", 0))
 
         concept_str = train_concept[0].get("concept", "")
         target = None
@@ -299,18 +327,6 @@ def main() -> int:
 
         if args.generate_response.lower() != "true":
             continue
-
-        results_path = gen_root / f"tmp_generation_results_{args.exp}.json"
-        existing: List[dict] = []
-        if results_path.exists():
-            try:
-                existing = load_json(results_path)
-                done_concepts = {c.get("concept_id") for c in existing}
-            except Exception:
-                done_concepts = set()
-                existing = []
-        else:
-            done_concepts = set()
 
         if cid in done_concepts:
             print(f"[resume] {cid} already done, skip")
@@ -340,6 +356,7 @@ def main() -> int:
                     processor = LogitBiasProcessor(
                         target.token_ids, target.count, bias=eff_mult,
                         tokenizer=model.tokenizer, phrase_str=target.phrase,
+                        delay_tokens=eff_delay,
                     )
                     gen_res = generate_one(model, item, generation_params, use_chat_template=True, logits_processor=processor)
                 elif eff_is_token:
@@ -380,9 +397,13 @@ def main() -> int:
             _empty_cache()  # keep MPS allocator tidy; lost patch preserved here.
 
         existing.append(concept_result)
-        with results_path.open("w", encoding="utf-8") as f:
+        if merge_mode:  # keep canonical concept order so single-concept edits don't reshuffle the file
+            order_map = {c: i for i, c in enumerate(valid_by_concept.keys())}
+            existing.sort(key=lambda c: order_map.get(c.get("concept_id"), 999))
+        out_path = final_path if merge_mode else tmp_path
+        with out_path.open("w", encoding="utf-8") as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
-        print(f"[ok] {cid} ({eff_mode}) written to {results_path.name}")
+        print(f"[ok] {cid} ({eff_mode}) written to {out_path.name}")
 
         # Reset CAA hooks so the next concept starts clean.
         model.reset_all()
@@ -394,12 +415,12 @@ def main() -> int:
         _gc.collect()
         _empty_cache()
 
-    # Final rename.
-    tmp_path = gen_root / f"tmp_generation_results_{args.exp}.json"
-    final_path = gen_root / f"all_generation_results_{args.exp}.json"
-    if tmp_path.exists():
+    # Final rename (only in full-run mode; merge mode writes final directly).
+    if not merge_mode and tmp_path.exists():
         tmp_path.replace(final_path)
         print(f"[done] {final_path}")
+    elif merge_mode:
+        print(f"[done] merged into {final_path}")
     return 0
 
 
